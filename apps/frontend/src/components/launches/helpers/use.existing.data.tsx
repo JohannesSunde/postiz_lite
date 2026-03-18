@@ -1,3 +1,5 @@
+'use client';
+
 import { createContext, FC, ReactNode, useContext } from 'react';
 import { Post } from '@prisma/client';
 const ExistingDataContext = createContext({

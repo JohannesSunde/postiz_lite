@@ -1,3 +1,5 @@
+'use client';
+
 import { createContext, FC, useCallback, useContext, useEffect } from 'react';
 import './providers/image-text-slides.provider';
 import './providers/veo3.provider';
