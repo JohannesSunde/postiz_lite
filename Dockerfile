@@ -12,6 +12,7 @@ WORKDIR /app
 FROM base AS build
 
 ENV NODE_ENV=development \
+  NODE_OPTIONS=--max-old-space-size=4096 \
   MAIN_URL=http://localhost:4200 \
   FRONTEND_URL=http://localhost:4200 \
   NEXT_PUBLIC_BACKEND_URL=http://localhost:3000 \
