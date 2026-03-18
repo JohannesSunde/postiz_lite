@@ -141,6 +141,55 @@ The app will expose:
 
 Lite mode is the default in `docker-compose.yaml`, with Temporal, Redis, and the heavier AI/chat/video surfaces disabled unless you opt back in with environment flags.
 
+### Portainer with a prebuilt image
+
+If your Docker host is too small to build the image reliably, use `docker-compose.runtime.yaml` instead of `docker-compose.yaml`.
+
+This file never builds locally. It expects a prebuilt image tag, defaulting to `localhost/postiz:lite`.
+
+Typical flow:
+
+1. Build the image on a stronger machine:
+
+```bash
+docker build -t localhost/postiz:lite -f Dockerfile .
+```
+
+2. Save and copy it to the Umbrel host:
+
+```bash
+docker save localhost/postiz:lite -o postiz-lite.tar
+```
+
+3. Load it on the Umbrel host:
+
+```bash
+docker load -i postiz-lite.tar
+```
+
+4. In Portainer, create the stack from `docker-compose.runtime.yaml`.
+
+### Windows helper
+
+If you are running the build on Windows, you can use:
+
+```powershell
+.\scripts\build-runtime-image.ps1
+```
+
+This will build `localhost/postiz:lite` and save `postiz-lite.tar` in the repo root.
+You can override the defaults with:
+
+```powershell
+.\scripts\build-runtime-image.ps1 -Tag localhost/postiz:lite -Output C:\temp\postiz-lite.tar
+```
+
+If PowerShell blocks the script, run this once in the current session:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+```
+
 ## Sponsor Postiz
 
 We now give a few options to Sponsor Postiz:

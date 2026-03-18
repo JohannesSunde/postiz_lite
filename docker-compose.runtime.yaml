@@ -1,0 +1,105 @@
+services:
+  postiz:
+    image: ${POSTIZ_IMAGE:-localhost/postiz:lite}
+    container_name: postiz
+    restart: always
+    environment:
+      NODE_ENV: 'production'
+      MAIN_URL: 'http://localhost:4200'
+      FRONTEND_URL: 'http://localhost:4200'
+      NEXT_PUBLIC_BACKEND_URL: 'http://localhost:3000'
+      BACKEND_INTERNAL_URL: 'http://localhost:3000'
+      JWT_SECRET: 'random string that is unique to every install - just type random characters here!'
+      DATABASE_URL: 'postgresql://postiz-user:postiz-password@postiz-postgres:5432/postiz-db-local'
+      IS_GENERAL: 'true'
+      DISABLE_REGISTRATION: 'false'
+      POSTIZ_ENABLE_HEAVY_FEATURES: 'false'
+      POSTIZ_ENABLE_SWAGGER: 'false'
+      POSTIZ_RUN_DB_PUSH: 'true'
+      PORT: '3000'
+
+      STORAGE_PROVIDER: 'local'
+      UPLOAD_DIRECTORY: '/uploads'
+      NEXT_PUBLIC_UPLOAD_STATIC_DIRECTORY: '/uploads'
+
+      # Social media API settings
+      X_API_KEY: ''
+      X_API_SECRET: ''
+      LINKEDIN_CLIENT_ID: ''
+      LINKEDIN_CLIENT_SECRET: ''
+      REDDIT_CLIENT_ID: ''
+      REDDIT_CLIENT_SECRET: ''
+      GITHUB_CLIENT_ID: ''
+      GITHUB_CLIENT_SECRET: ''
+      BEEHIIVE_API_KEY: ''
+      BEEHIIVE_PUBLICATION_ID: ''
+      THREADS_APP_ID: ''
+      THREADS_APP_SECRET: ''
+      FACEBOOK_APP_ID: ''
+      FACEBOOK_APP_SECRET: ''
+      YOUTUBE_CLIENT_ID: ''
+      YOUTUBE_CLIENT_SECRET: ''
+      TIKTOK_CLIENT_ID: ''
+      TIKTOK_CLIENT_SECRET: ''
+      PINTEREST_CLIENT_ID: ''
+      PINTEREST_CLIENT_SECRET: ''
+      DRIBBBLE_CLIENT_ID: ''
+      DRIBBBLE_CLIENT_SECRET: ''
+      DISCORD_CLIENT_ID: ''
+      DISCORD_CLIENT_SECRET: ''
+      DISCORD_BOT_TOKEN_ID: ''
+      SLACK_ID: ''
+      SLACK_SECRET: ''
+      SLACK_SIGNING_SECRET: ''
+      MASTODON_URL: 'https://mastodon.social'
+      MASTODON_CLIENT_ID: ''
+      MASTODON_CLIENT_SECRET: ''
+      OPENAI_API_KEY: ''
+      NEXT_PUBLIC_DISCORD_SUPPORT: ''
+      NEXT_PUBLIC_POLOTNO: ''
+      API_LIMIT: 30
+      FEE_AMOUNT: 0.05
+      STRIPE_PUBLISHABLE_KEY: ''
+      STRIPE_SECRET_KEY: ''
+      STRIPE_SIGNING_KEY: ''
+      STRIPE_SIGNING_KEY_CONNECT: ''
+      NX_ADD_PLUGINS: false
+    volumes:
+      - postiz-uploads:/uploads/
+    ports:
+      - "3000:3000"
+      - "4200:4200"
+    networks:
+      - postiz-network
+    depends_on:
+      postiz-postgres:
+        condition: service_healthy
+
+  postiz-postgres:
+    image: postgres:17-alpine
+    container_name: postiz-postgres
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: postiz-password
+      POSTGRES_USER: postiz-user
+      POSTGRES_DB: postiz-db-local
+    volumes:
+      - postgres-volume:/var/lib/postgresql/data
+    networks:
+      - postiz-network
+    healthcheck:
+      test: pg_isready -U postiz-user -d postiz-db-local
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  postgres-volume:
+    external: false
+
+  postiz-uploads:
+    external: false
+
+networks:
+  postiz-network:
+    external: false
