@@ -4,15 +4,22 @@ import useSWR from 'swr';
 import { Button } from '@gitroom/react/form/button';
 import clsx from 'clsx';
 import { useModals } from '@gitroom/frontend/components/layout/new-modal';
-import { TopTitle } from '@gitroom/frontend/components/launches/helpers/top.title.component';
 import { array, boolean, object, string } from 'yup';
 import { FormProvider, useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
-import { CopilotTextarea } from '@copilotkit/react-textarea';
 import { Select } from '@gitroom/react/form/select';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
+import { useVariables } from '@gitroom/react/helpers/variable.context';
+import dynamic from 'next/dynamic';
+
+const CopilotTextarea = dynamic(
+  () => import('@copilotkit/react-textarea').then((m) => m.CopilotTextarea),
+  {
+    ssr: false,
+  }
+);
 export const SignaturesComponent: FC<{
   appendSignature?: (value: string) => void;
 }> = (props) => {
@@ -145,6 +152,7 @@ const AddOrRemoveSignature: FC<{
   const { data, reload } = props;
   const toast = useToaster();
   const fetch = useFetch();
+  const { heavyFeaturesEnabled } = useVariables();
   const form = useForm({
     resolver: yupResolver(details),
     values: {
@@ -201,21 +209,34 @@ const AddOrRemoveSignature: FC<{
           </button>
 
           <div className="relative bg-customColor2">
-            <CopilotTextarea
-              disableBranding={true}
-              className={clsx(
-                '!min-h-40 !max-h-80 p-2 overflow-x-hidden scrollbar scrollbar-thumb-[#612AD5] bg-bigStrip outline-none'
-              )}
-              value={text}
-              onChange={(e) => {
-                form.setValue('content', e.target.value);
-              }}
-              placeholder="Write your signature..."
-              autosuggestionsConfig={{
-                textareaPurpose: `Assist me in writing social media signature`,
-                chatApiConfigs: {},
-              }}
-            />
+            {heavyFeaturesEnabled ? (
+              <CopilotTextarea
+                disableBranding={true}
+                className={clsx(
+                  '!min-h-40 !max-h-80 p-2 overflow-x-hidden scrollbar scrollbar-thumb-[#612AD5] bg-bigStrip outline-none'
+                )}
+                value={text || ''}
+                onChange={(e) => {
+                  form.setValue('content', e.target.value);
+                }}
+                placeholder="Write your signature..."
+                autosuggestionsConfig={{
+                  textareaPurpose: `Assist me in writing social media signature`,
+                  chatApiConfigs: {},
+                }}
+              />
+            ) : (
+              <textarea
+                className={clsx(
+                  '!min-h-40 !max-h-80 p-2 overflow-x-hidden scrollbar scrollbar-thumb-[#612AD5] bg-bigStrip outline-none w-full'
+                )}
+                value={text || ''}
+                onChange={(e) => {
+                  form.setValue('content', e.target.value);
+                }}
+                placeholder="Write your signature..."
+              />
+            )}
           </div>
 
           <Select

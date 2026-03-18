@@ -273,7 +273,7 @@ export class IntegrationsController {
     try {
       newList = (await this.functionIntegration(org, body)) || [];
     } catch (err) {
-      console.log(err);
+      /** handled */
     }
 
     if (!Array.isArray(newList) && newList?.none) {

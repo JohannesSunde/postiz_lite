@@ -25,6 +25,15 @@ export class AutopostRepository {
     });
   }
 
+  getActiveAutoposts() {
+    return this._autoPost.model.autoPost.findMany({
+      where: {
+        deletedAt: null,
+        active: true,
+      },
+    });
+  }
+
   deleteAutopost(orgId: string, id: string) {
     return this._autoPost.model.autoPost.update({
       where: {

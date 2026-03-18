@@ -7,7 +7,6 @@ import {
   Post,
   Put,
   Query,
-  Res,
 } from '@nestjs/common';
 import { PostsService } from '@gitroom/nestjs-libraries/database/prisma/posts/posts.service';
 import { GetOrgFromRequest } from '@gitroom/nestjs-libraries/user/org.from.request';
@@ -16,10 +15,7 @@ import { GetPostsDto } from '@gitroom/nestjs-libraries/dtos/posts/get.posts.dto'
 import { GetPostsListDto } from '@gitroom/nestjs-libraries/dtos/posts/get.posts.list.dto';
 import { CheckPolicies } from '@gitroom/backend/services/auth/permissions/permissions.ability';
 import { ApiTags } from '@nestjs/swagger';
-import { GeneratorDto } from '@gitroom/nestjs-libraries/dtos/generator/generator.dto';
 import { CreateGeneratedPostsDto } from '@gitroom/nestjs-libraries/dtos/generator/create.generated.posts.dto';
-import { AgentGraphService } from '@gitroom/nestjs-libraries/agent/agent.graph.service';
-import { Response } from 'express';
 import { GetUserFromRequest } from '@gitroom/nestjs-libraries/user/user.from.request';
 import { ShortLinkService } from '@gitroom/nestjs-libraries/short-linking/short.link.service';
 import { CreateTagDto } from '@gitroom/nestjs-libraries/dtos/posts/create.tag.dto';
@@ -33,7 +29,6 @@ import {
 export class PostsController {
   constructor(
     private _postsService: PostsService,
-    private _agentGraphService: AgentGraphService,
     private _shortLinkService: ShortLinkService
   ) {}
 
@@ -160,7 +155,6 @@ export class PostsController {
     @GetOrgFromRequest() org: Organization,
     @Body() rawBody: any
   ) {
-    console.log(JSON.stringify(rawBody, null, 2));
     const body = await this._postsService.mapTypeToPost(rawBody, org.id);
     return this._postsService.createPost(org.id, body);
   }
@@ -172,21 +166,6 @@ export class PostsController {
     @Body() body: CreateGeneratedPostsDto
   ) {
     return this._postsService.generatePostsDraft(org.id, body);
-  }
-
-  @Post('/generator')
-  @CheckPolicies([AuthorizationActions.Create, Sections.POSTS_PER_MONTH])
-  async generatePosts(
-    @GetOrgFromRequest() org: Organization,
-    @Body() body: GeneratorDto,
-    @Res({ passthrough: false }) res: Response
-  ) {
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    for await (const event of this._agentGraphService.start(org.id, body)) {
-      res.write(JSON.stringify(event) + '\n');
-    }
-
-    res.end();
   }
 
   @Delete('/:group')

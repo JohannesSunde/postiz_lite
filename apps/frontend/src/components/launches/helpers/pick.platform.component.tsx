@@ -4,9 +4,20 @@ import { useMoveToIntegrationListener } from '@gitroom/frontend/components/launc
 import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
 import clsx from 'clsx';
 import Image from 'next/image';
-import { useCopilotAction, useCopilotReadable } from '@copilotkit/react-core';
 import { useStateCallback } from '@gitroom/react/helpers/use.state.callback';
 import { timer } from '@gitroom/helpers/utils/timer';
+import { useVariables } from '@gitroom/react/helpers/variable.context';
+import dynamic from 'next/dynamic';
+
+const CopilotPlatformBindings = dynamic(
+  () =>
+    import('@gitroom/frontend/components/launches/helpers/pick.platform.copilot').then(
+      (m) => m.CopilotPlatformBindings
+    ),
+  {
+    ssr: false,
+  }
+);
 export const PickPlatforms: FC<{
   integrations: Integrations[];
   selectedIntegrations: Integrations[];
@@ -17,6 +28,7 @@ export const PickPlatforms: FC<{
   toolTip?: boolean;
 }> = (props) => {
   const { hide, isMain, integrations, selectedIntegrations, onChange } = props;
+  const { heavyFeaturesEnabled } = useVariables();
   const ref = useRef<HTMLDivElement>(null);
   const [isLeft, setIsLeft] = useState(false);
   const [isRight, setIsRight] = useState(false);
@@ -148,37 +160,6 @@ export const PickPlatforms: FC<{
       console.log('changed');
     });
   };
-  useCopilotReadable({
-    description: isMain
-      ? 'All available platforms channels'
-      : 'Possible platforms channels to edit',
-    value: JSON.stringify(integrations),
-  });
-  useCopilotAction(
-    {
-      name: isMain ? `addOrRemovePlatform` : 'setSelectedIntegration',
-      description: isMain
-        ? `Add or remove channels to schedule your post to, pass all the ids as array`
-        : 'Set selected integrations',
-      parameters: [
-        {
-          name: 'integrationsId',
-          type: 'string[]',
-          description: 'List of integrations id to set as selected',
-          required: true,
-        },
-      ],
-      handler,
-    },
-    [
-      addPlatform,
-      selectedAccounts,
-      integrations,
-      onChange,
-      props.singleSelect,
-      setSelectedAccounts,
-    ]
-  );
   if (hide) {
     return null;
   }
@@ -186,6 +167,15 @@ export const PickPlatforms: FC<{
     <div
       className={clsx('flex select-none', props.singleSelect && 'gap-[10px]')}
     >
+      {heavyFeaturesEnabled && (
+        <CopilotPlatformBindings
+          isMain={isMain}
+          integrations={integrations}
+          selectedIntegrations={selectedIntegrations}
+          onChange={onChange}
+          singleSelect={props.singleSelect}
+        />
+      )}
       {props.singleSelect && isLeft && (
         <div className="flex items-center">
           {isLeft && (

@@ -17,8 +17,6 @@ import { MediaRepository } from '@gitroom/nestjs-libraries/database/prisma/media
 import { NotificationsRepository } from '@gitroom/nestjs-libraries/database/prisma/notifications/notifications.repository';
 import { EmailService } from '@gitroom/nestjs-libraries/services/email.service';
 import { StripeService } from '@gitroom/nestjs-libraries/services/stripe.service';
-import { ExtractContentService } from '@gitroom/nestjs-libraries/openai/extract.content.service';
-import { OpenaiService } from '@gitroom/nestjs-libraries/openai/openai.service';
 import { AgenciesService } from '@gitroom/nestjs-libraries/database/prisma/agencies/agencies.service';
 import { AgenciesRepository } from '@gitroom/nestjs-libraries/database/prisma/agencies/agencies.repository';
 import { TrackService } from '@gitroom/nestjs-libraries/track/track.service';
@@ -33,11 +31,21 @@ import { SetsService } from '@gitroom/nestjs-libraries/database/prisma/sets/sets
 import { SetsRepository } from '@gitroom/nestjs-libraries/database/prisma/sets/sets.repository';
 import { ThirdPartyRepository } from '@gitroom/nestjs-libraries/database/prisma/third-party/third-party.repository';
 import { ThirdPartyService } from '@gitroom/nestjs-libraries/database/prisma/third-party/third-party.service';
-import { VideoManager } from '@gitroom/nestjs-libraries/videos/video.manager';
-import { FalService } from '@gitroom/nestjs-libraries/openai/fal.service';
 import { RefreshIntegrationService } from '@gitroom/nestjs-libraries/integrations/refresh.integration.service';
 import { OAuthRepository } from '@gitroom/nestjs-libraries/database/prisma/oauth/oauth.repository';
 import { OAuthService } from '@gitroom/nestjs-libraries/database/prisma/oauth/oauth.service';
+
+const heavyFeaturesEnabled = process.env.POSTIZ_ENABLE_HEAVY_FEATURES === 'true';
+
+const heavyProviders = heavyFeaturesEnabled
+  ? [
+      require('@gitroom/nestjs-libraries/openai/extract.content.service')
+        .ExtractContentService,
+      require('@gitroom/nestjs-libraries/openai/openai.service').OpenaiService,
+      require('@gitroom/nestjs-libraries/openai/fal.service').FalService,
+      require('@gitroom/nestjs-libraries/videos/video.manager').VideoManager,
+    ]
+  : [];
 
 @Global()
 @Module({
@@ -72,9 +80,6 @@ import { OAuthService } from '@gitroom/nestjs-libraries/database/prisma/oauth/oa
     AgenciesRepository,
     IntegrationManager,
     RefreshIntegrationService,
-    ExtractContentService,
-    OpenaiService,
-    FalService,
     EmailService,
     TrackService,
     ShortLinkService,
@@ -84,7 +89,7 @@ import { OAuthService } from '@gitroom/nestjs-libraries/database/prisma/oauth/oa
     ThirdPartyService,
     OAuthRepository,
     OAuthService,
-    VideoManager,
+    ...heavyProviders,
   ],
   get exports() {
     return this.providers;

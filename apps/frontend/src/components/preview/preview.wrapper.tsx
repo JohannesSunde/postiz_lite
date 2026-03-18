@@ -7,10 +7,17 @@ import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { Toaster } from '@gitroom/react/toaster/toaster';
 import { MantineWrapper } from '@gitroom/react/helpers/mantine.wrapper';
 import { useVariables } from '@gitroom/react/helpers/variable.context';
-import { CopilotKit } from '@copilotkit/react-core';
+import dynamic from 'next/dynamic';
+
+const CopilotShell = dynamic(
+  () => import('@gitroom/frontend/components/preview/copilot.shell').then((m) => m.PreviewCopilotShell),
+  {
+    ssr: false,
+  }
+);
 export const PreviewWrapper = ({ children }: { children: ReactNode }) => {
   const fetch = useFetch();
-  const { backendUrl } = useVariables();
+  const { backendUrl, heavyFeaturesEnabled } = useVariables();
   const load = useCallback(async (path: string) => {
     return await (await fetch(path)).json();
   }, []);
@@ -23,16 +30,19 @@ export const PreviewWrapper = ({ children }: { children: ReactNode }) => {
   });
   return (
     <ContextWrapper user={user}>
-      <CopilotKit
-        credentials="include"
-        runtimeUrl={backendUrl + '/copilot/chat'}
-        showDevConsole={false}
-      >
+      {heavyFeaturesEnabled ? (
+        <CopilotShell backendUrl={backendUrl}>
+          <MantineWrapper>
+            <Toaster />
+            {children}
+          </MantineWrapper>
+        </CopilotShell>
+      ) : (
         <MantineWrapper>
           <Toaster />
           {children}
         </MantineWrapper>
-      </CopilotKit>
+      )}
     </ContextWrapper>
   );
 };

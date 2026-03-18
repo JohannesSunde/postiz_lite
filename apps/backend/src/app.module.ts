@@ -4,19 +4,21 @@ import { ApiModule } from '@gitroom/backend/api/api.module';
 import { APP_GUARD } from '@nestjs/core';
 import { PoliciesGuard } from '@gitroom/backend/services/auth/permissions/permissions.guard';
 import { PublicApiModule } from '@gitroom/backend/public-api/public.api.module';
-import { ThrottlerBehindProxyGuard } from '@gitroom/nestjs-libraries/throttler/throttler.provider';
-import { ThrottlerModule } from '@nestjs/throttler';
-import { AgentModule } from '@gitroom/nestjs-libraries/agent/agent.module';
-import { ThirdPartyModule } from '@gitroom/nestjs-libraries/3rdparties/thirdparty.module';
-import { VideoModule } from '@gitroom/nestjs-libraries/videos/video.module';
 import { SentryModule } from '@sentry/nestjs/setup';
 import { FILTER } from '@gitroom/nestjs-libraries/sentry/sentry.exception';
-import { ChatModule } from '@gitroom/nestjs-libraries/chat/chat.module';
-import { getTemporalModule } from '@gitroom/nestjs-libraries/temporal/temporal.module';
-import { TemporalRegisterMissingSearchAttributesModule } from '@gitroom/nestjs-libraries/temporal/temporal.register';
-import { InfiniteWorkflowRegisterModule } from '@gitroom/nestjs-libraries/temporal/infinite.workflow.register';
-import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
-import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
+import { BackgroundSchedulerService } from '@gitroom/nestjs-libraries/background/background.service';
+
+const heavyFeaturesEnabled = process.env.POSTIZ_ENABLE_HEAVY_FEATURES === 'true';
+
+const heavyImports = heavyFeaturesEnabled
+  ? [
+      require('@gitroom/nestjs-libraries/agent/agent.module').AgentModule,
+      require('@gitroom/nestjs-libraries/3rdparties/thirdparty.module')
+        .ThirdPartyModule,
+      require('@gitroom/nestjs-libraries/videos/video.module').VideoModule,
+      require('@gitroom/nestjs-libraries/chat/chat.module').ChatModule,
+    ]
+  : [];
 
 @Global()
 @Module({
@@ -25,30 +27,12 @@ import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
     DatabaseModule,
     ApiModule,
     PublicApiModule,
-    AgentModule,
-    ThirdPartyModule,
-    VideoModule,
-    ChatModule,
-    getTemporalModule(false),
-    TemporalRegisterMissingSearchAttributesModule,
-    InfiniteWorkflowRegisterModule,
-    ThrottlerModule.forRoot({
-      throttlers: [
-        {
-          ttl: 3600000,
-          limit: process.env.API_LIMIT ? Number(process.env.API_LIMIT) : 30,
-        },
-      ],
-      storage: new ThrottlerStorageRedisService(ioRedis),
-    }),
+    ...heavyImports,
   ],
   controllers: [],
   providers: [
     FILTER,
-    {
-      provide: APP_GUARD,
-      useClass: ThrottlerBehindProxyGuard,
-    },
+    BackgroundSchedulerService,
     {
       provide: APP_GUARD,
       useClass: PoliciesGuard,
@@ -58,9 +42,6 @@ import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
     DatabaseModule,
     ApiModule,
     PublicApiModule,
-    AgentModule,
-    ThrottlerModule,
-    ChatModule,
   ],
 })
 export class AppModule {}

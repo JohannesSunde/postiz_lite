@@ -5,6 +5,7 @@ import Loading from 'react-loading';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useLaunchStore } from '@gitroom/frontend/components/new-launch/store';
+import { useVariables } from '@gitroom/react/helpers/variable.context';
 const list = [
   'Realistic',
   'Cartoon',
@@ -27,6 +28,7 @@ export const AiImage: FC<{
 }> = (props) => {
   const t = useT();
   const { value, onChange } = props;
+  const { heavyFeaturesEnabled } = useVariables();
   const [loading, setLoading] = useState(false);
   const setLocked = useLaunchStore((p) => p.setLocked);
   const fetch = useFetch();
@@ -57,6 +59,10 @@ ${type}
     },
     [value, onChange]
   );
+  if (!heavyFeaturesEnabled) {
+    return null;
+  }
+
   return (
     <div className="relative group">
       <div

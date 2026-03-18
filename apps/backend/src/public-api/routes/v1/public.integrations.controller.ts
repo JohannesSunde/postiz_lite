@@ -25,8 +25,6 @@ import {
   AuthorizationActions,
   Sections,
 } from '@gitroom/backend/services/auth/permissions/permission.exception.class';
-import { VideoDto } from '@gitroom/nestjs-libraries/dtos/videos/video.dto';
-import { VideoFunctionDto } from '@gitroom/nestjs-libraries/dtos/videos/video.function.dto';
 import { UploadDto } from '@gitroom/nestjs-libraries/dtos/media/upload.dto';
 import { NotificationService } from '@gitroom/nestjs-libraries/database/prisma/notifications/notification.service';
 import { GetNotificationsDto } from '@gitroom/nestjs-libraries/dtos/notifications/get.notifications.dto';
@@ -35,7 +33,6 @@ import { Readable } from 'stream';
 import { lookup, extension } from 'mime-types';
 import * as Sentry from '@sentry/nestjs';
 import { socialIntegrationList, IntegrationManager } from '@gitroom/nestjs-libraries/integrations/integration.manager';
-import { getValidationSchemas } from '@gitroom/nestjs-libraries/chat/validation.schemas.helper';
 import { RefreshIntegrationService } from '@gitroom/nestjs-libraries/integrations/refresh.integration.service';
 import { RefreshToken } from '@gitroom/nestjs-libraries/integrations/social.abstract';
 import { timer } from '@gitroom/helpers/utils/timer';
@@ -145,8 +142,6 @@ export class PublicIntegrationsController {
       rawBody.type === 'draft'
     );
     body.type = rawBody.type;
-
-    console.log(JSON.stringify(body, null, 2));
     return this._postsService.createPost(org.id, body);
   }
 
@@ -251,25 +246,6 @@ export class PublicIntegrationsController {
     );
   }
 
-  @Post('/generate-video')
-  generateVideo(
-    @GetOrgFromRequest() org: Organization,
-    @Body() body: VideoDto
-  ) {
-    Sentry.metrics.count('public_api-request', 1);
-    return this._mediaService.generateVideo(org, body);
-  }
-
-  @Post('/video/function')
-  videoFunction(@Body() body: VideoFunctionDto) {
-    Sentry.metrics.count('public_api-request', 1);
-    return this._mediaService.videoFunction(
-      body.identifier,
-      body.functionName,
-      body.params
-    );
-  }
-
   @Delete('/integrations/:id')
   async deleteChannel(
     @GetOrgFromRequest() org: Organization,
@@ -318,7 +294,8 @@ export class PublicIntegrationsController {
     const maxLength = integration.maxLength(verified);
     const schemas = !integration.dto
       ? false
-      : getValidationSchemas()[integration.dto.name];
+      : require('@gitroom/nestjs-libraries/chat/validation.schemas.helper')
+          .getValidationSchemas()[integration.dto.name];
     const tools = this._integrationManager.getAllTools();
     const rules = this._integrationManager.getAllRulesDescription();
 

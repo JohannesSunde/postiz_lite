@@ -119,12 +119,27 @@ Integrate powerful social media scheduling capabilities into your SaaS. <br />Mu
 - NextJS (React)
 - NestJS
 - Prisma (Default to PostgreSQL)
-- Temporal
 - Resend (email notifications)
 
 ## Quick Start
 
 To have the project up and running, please follow the [Quick Start Guide](https://docs.postiz.com/quickstart)
+
+## Docker Lite Deployment
+
+For a low-powered home server, the recommended self-hosted setup is now a single app container plus Postgres.
+
+Run:
+
+```bash
+docker compose up -d --build
+```
+
+The app will expose:
+- `http://localhost:4200` for the frontend
+- `http://localhost:3000` for the backend API
+
+Lite mode is the default in `docker-compose.yaml`, with Temporal, Redis, and the heavier AI/chat/video surfaces disabled unless you opt back in with environment flags.
 
 ## Sponsor Postiz
 

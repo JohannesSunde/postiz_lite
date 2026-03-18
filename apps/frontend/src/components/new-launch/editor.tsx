@@ -29,7 +29,7 @@ import { MultiMediaComponent } from '@gitroom/frontend/components/media/media.co
 import { UpDownArrow } from '@gitroom/frontend/components/launches/up.down.arrow';
 import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
 import { useExistingData } from '@gitroom/frontend/components/launches/helpers/use.existing.data';
-import { useCopilotAction, useCopilotReadable } from '@copilotkit/react-core';
+import { useVariables } from '@gitroom/react/helpers/variable.context';
 import { useDropzone } from 'react-dropzone';
 import { useUppyUploader } from '@gitroom/frontend/components/media/new.uploader';
 import { Dashboard } from '@uppy/react';
@@ -67,6 +67,17 @@ import {
   DelayIcon,
 } from '@gitroom/frontend/components/ui/icons';
 import { DelayComponent } from '@gitroom/frontend/components/new-launch/delay.component';
+import dynamic from 'next/dynamic';
+
+const EditorCopilotBindings = dynamic(
+  () =>
+    import('@gitroom/frontend/components/new-launch/editor.copilot.bindings').then(
+      (m) => m.EditorCopilotBindings
+    ),
+  {
+    ssr: false,
+  }
+);
 
 const MAX_UPLOAD_SIZE = 1024 * 1024 * 1024; // 1 GB
 
@@ -173,6 +184,7 @@ export const EditorWrapper: FC<{
 
   const existingData = useExistingData();
   const [loaded, setLoaded] = useState(true);
+  const { heavyFeaturesEnabled } = useVariables();
 
   useEffect(() => {
     if (loaded && loadedState) {
@@ -205,8 +217,8 @@ export const EditorWrapper: FC<{
             ? { media: items[index].media }
             : { media: [] }),
           content: p,
-        };
-      });
+  };
+});
       if (internal) {
         return setInternalValue(current, newValue);
       }
@@ -215,26 +227,6 @@ export const EditorWrapper: FC<{
     },
     [internal, items]
   );
-
-  useCopilotReadable({
-    description: 'Current content of posts',
-    value: items.map((p) => p.content),
-  });
-
-  useCopilotAction({
-    name: 'setPosts',
-    description: 'a thread of posts',
-    parameters: [
-      {
-        name: 'content',
-        type: 'string[]',
-        description: 'a thread of posts',
-      },
-    ],
-    handler: async ({ content }) => {
-      setValue(content);
-    },
-  });
 
   const changeValue = useCallback(
     (index: number) => (value: string) => {
@@ -358,6 +350,10 @@ export const EditorWrapper: FC<{
   }
 
   return (
+    <>
+      {heavyFeaturesEnabled && (
+        <EditorCopilotBindings items={items} setValue={setValue} />
+      )}
     <div
       className={clsx(
         'relative flex-col gap-[20px] flex-1',
@@ -522,6 +518,7 @@ export const EditorWrapper: FC<{
         </div>
       ))}
     </div>
+    </>
   );
 };
 

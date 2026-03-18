@@ -1,11 +1,8 @@
 import { initializeSentry } from '@gitroom/nestjs-libraries/sentry/initialize.sentry';
-initializeSentry('backend', true);
+initializeSentry('backend', process.env.POSTIZ_ENABLE_HEAVY_FEATURES === 'true');
 import compression from 'compression';
 
-import { loadSwagger } from '@gitroom/helpers/swagger/load.swagger';
 import { json } from 'express';
-import { Runtime } from '@temporalio/worker';
-Runtime.install({ shutdownSignals: [] });
 
 process.env.TZ = 'UTC';
 
@@ -17,7 +14,8 @@ import { AppModule } from './app.module';
 import { SubscriptionExceptionFilter } from '@gitroom/backend/services/auth/permissions/subscription.exception';
 import { HttpExceptionFilter } from '@gitroom/nestjs-libraries/services/exception.filter';
 import { ConfigurationChecker } from '@gitroom/helpers/configuration/configuration.checker';
-import { startMcp } from '@gitroom/nestjs-libraries/chat/start.mcp';
+
+const heavyFeaturesEnabled = process.env.POSTIZ_ENABLE_HEAVY_FEATURES === 'true';
 
 async function start() {
   const app = await NestFactory.create(AppModule, {
@@ -44,7 +42,12 @@ async function start() {
     },
   });
 
-  await startMcp(app);
+  if (heavyFeaturesEnabled) {
+    const { startMcp } = await import(
+      '@gitroom/nestjs-libraries/chat/start.mcp'
+    );
+    await startMcp(app);
+  }
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -52,16 +55,24 @@ async function start() {
     })
   );
 
-  app.use(['/copilot/*', '/posts'], (req: any, res: any, next: any) => {
-    json({ limit: '50mb' })(req, res, next);
-  });
+  app.use(
+    [ ...(heavyFeaturesEnabled ? ['/copilot/*'] : []), '/posts' ],
+    (req: any, res: any, next: any) => {
+      json({ limit: '50mb' })(req, res, next);
+    }
+  );
 
   app.use(cookieParser());
   app.use(compression());
   app.useGlobalFilters(new SubscriptionExceptionFilter());
   app.useGlobalFilters(new HttpExceptionFilter());
 
-  loadSwagger(app);
+  if (process.env.POSTIZ_ENABLE_SWAGGER === 'true') {
+    const { loadSwagger } = await import(
+      '@gitroom/helpers/swagger/load.swagger'
+    );
+    loadSwagger(app);
+  }
 
   const port = process.env.PORT || 3000;
 

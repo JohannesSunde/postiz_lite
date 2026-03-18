@@ -6,7 +6,6 @@ import {
   AuthTokenDetails,
   SocialProvider,
 } from '@gitroom/nestjs-libraries/integrations/social/social.integrations.interface';
-import { TemporalService } from 'nestjs-temporal-core';
 
 @Injectable()
 export class RefreshIntegrationService {
@@ -14,7 +13,6 @@ export class RefreshIntegrationService {
     private _integrationManager: IntegrationManager,
     @Inject(forwardRef(() => IntegrationService))
     private _integrationService: IntegrationService,
-    private _temporalService: TemporalService
   ) {}
   async refresh(integration: Integration): Promise<false | AuthTokenDetails> {
     const socialProvider = this._integrationManager.getSocialIntegration(
@@ -53,18 +51,7 @@ export class RefreshIntegrationService {
   }
 
   public async startRefreshWorkflow(orgId: string, id: string, integration: SocialProvider) {
-    if (!integration.refreshCron) {
-      return false;
-    }
-
-    return this._temporalService.client
-      .getRawClient()
-      ?.workflow.start(`refreshTokenWorkflow`, {
-        workflowId: `refresh_${id}`,
-        args: [{integrationId: id, organizationId: orgId}],
-        taskQueue: 'main',
-        workflowIdConflictPolicy: 'TERMINATE_EXISTING',
-      });
+    return !!integration.refreshCron;
   }
 
   private async refreshProcess(

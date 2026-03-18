@@ -57,6 +57,36 @@ export class PostsRepository {
     });
   }
 
+  getDuePosts() {
+    return this._post.model.post.findMany({
+      where: {
+        integration: {
+          refreshNeeded: false,
+          inBetweenSteps: false,
+          disabled: false,
+        },
+        publishDate: {
+          lte: dayjs.utc().toDate(),
+        },
+        state: 'QUEUE',
+        deletedAt: null,
+        parentPostId: null,
+      },
+      select: {
+        id: true,
+        organizationId: true,
+        integration: {
+          select: {
+            providerIdentifier: true,
+          },
+        },
+      },
+      orderBy: {
+        publishDate: 'asc',
+      },
+    });
+  }
+
   getOldPosts(orgId: string, date: string) {
     return this._post.model.post.findMany({
       where: {

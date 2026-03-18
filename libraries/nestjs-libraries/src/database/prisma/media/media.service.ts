@@ -1,10 +1,9 @@
 import { HttpException, Injectable } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { MediaRepository } from '@gitroom/nestjs-libraries/database/prisma/media/media.repository';
-import { OpenaiService } from '@gitroom/nestjs-libraries/openai/openai.service';
 import { SubscriptionService } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/subscription.service';
 import { Organization } from '@prisma/client';
 import { SaveMediaInformationDto } from '@gitroom/nestjs-libraries/dtos/media/save.media.information.dto';
-import { VideoManager } from '@gitroom/nestjs-libraries/videos/video.manager';
 import { VideoDto } from '@gitroom/nestjs-libraries/dtos/videos/video.dto';
 import { UploadFactory } from '@gitroom/nestjs-libraries/upload/upload.factory';
 import {
@@ -19,10 +18,39 @@ export class MediaService {
 
   constructor(
     private _mediaRepository: MediaRepository,
-    private _openAi: OpenaiService,
     private _subscriptionService: SubscriptionService,
-    private _videoManager: VideoManager
+    private _moduleRef: ModuleRef
   ) {}
+
+  private getOpenAiService() {
+    const { OpenaiService } = require(
+      '@gitroom/nestjs-libraries/openai/openai.service'
+    );
+    const openAi = this._moduleRef.get(OpenaiService, {
+      strict: false,
+    });
+
+    if (!openAi) {
+      throw new Error('OpenAI service is not available');
+    }
+
+    return openAi;
+  }
+
+  private getVideoManager() {
+    const { VideoManager } = require(
+      '@gitroom/nestjs-libraries/videos/video.manager'
+    );
+    const videoManager = this._moduleRef.get(VideoManager, {
+      strict: false,
+    });
+
+    if (!videoManager) {
+      throw new Error('Video manager is not available');
+    }
+
+    return videoManager;
+  }
 
   async deleteMedia(org: string, id: string) {
     return this._mediaRepository.deleteMedia(org, id);
@@ -41,11 +69,11 @@ export class MediaService {
       org,
       'ai_images',
       async () => {
+        const openAi = this.getOpenAiService();
         if (generatePromptFirst) {
-          prompt = await this._openAi.generatePromptForPicture(prompt);
-          console.log('Prompt:', prompt);
+          prompt = await openAi.generatePromptForPicture(prompt);
         }
-        return this._openAi.generateImage(prompt, !!generatePromptFirst);
+        return openAi.generateImage(prompt, !!generatePromptFirst);
       }
     );
 
@@ -65,11 +93,11 @@ export class MediaService {
   }
 
   getVideoOptions() {
-    return this._videoManager.getAllVideos();
+    return this.getVideoManager().getAllVideos();
   }
 
   async generateVideoAllowed(org: Organization, type: string) {
-    const video = this._videoManager.getVideoByName(type);
+    const video = this.getVideoManager().getVideoByName(type);
     if (!video) {
       throw new Error(`Video type ${type} not found`);
     }
@@ -94,7 +122,7 @@ export class MediaService {
       });
     }
 
-    const video = this._videoManager.getVideoByName(body.type);
+    const video = this.getVideoManager().getVideoByName(body.type);
     if (!video) {
       throw new Error(`Video type ${body.type} not found`);
     }
@@ -103,9 +131,7 @@ export class MediaService {
       throw new HttpException('This video is not available in trial mode', 406);
     }
 
-    console.log(body.customParams);
     await video.instance.processAndValidate(body.customParams);
-    console.log('no err');
 
     return await this._subscriptionService.useCredit(
       org,
@@ -123,7 +149,8 @@ export class MediaService {
   }
 
   async videoFunction(identifier: string, functionName: string, body: any) {
-    const video = this._videoManager.getVideoByName(identifier);
+    const videoManager = this.getVideoManager();
+    const video = videoManager.getVideoByName(identifier);
     if (!video) {
       throw new Error(`Video with identifier ${identifier} not found`);
     }
@@ -132,7 +159,7 @@ export class MediaService {
     const functionToCall = video.instance[functionName];
     if (
       typeof functionToCall !== 'function' ||
-      this._videoManager.checkAvailableVideoFunction(functionToCall)
+      videoManager.checkAvailableVideoFunction(functionToCall)
     ) {
       throw new HttpException(
         `Function ${functionName} not found on video instance`,

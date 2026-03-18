@@ -18,7 +18,7 @@ interface MenuItemInterface {
 }
 
 export const useMenuItem = () => {
-  const { isGeneral } = useVariables();
+  const { isGeneral, heavyFeaturesEnabled } = useVariables();
   const t = useT();
   const fetch = useFetch();
 
@@ -73,6 +73,7 @@ export const useMenuItem = () => {
         </svg>
       ),
       path: '/agents',
+      hide: !heavyFeaturesEnabled,
     },
     {
       name: t('analytics', 'Analytics'),
@@ -157,6 +158,7 @@ export const useMenuItem = () => {
         </svg>
       ),
       path: '/third-party',
+      hide: !heavyFeaturesEnabled,
     },
   ] satisfies MenuItemInterface[] as MenuItemInterface[];
 
@@ -193,6 +195,7 @@ export const useMenuItem = () => {
       role: ['ADMIN', 'SUPERADMIN', 'USER'],
       requireBilling: true,
       onClick: handleAgentMediaClick,
+      hide: !heavyFeaturesEnabled,
     },
     {
       name: t('affiliate', 'Affiliate'),

@@ -12,9 +12,10 @@ Made with PNPM.
 We have 3 important folders
 
 - apps/backend - this is where the API code is (NESTJS)
-- apps/orchestrator - this is temporal, it's for background jobs (NESTJS) it contains all the workflows and activities
-- apps/frontend - this is the code of the frontend (Vite ReactJS)
-- /libraries contains a lot of services shared between backend and orchestrator and frontend components.
+- apps/frontend - this is the code of the frontend (NextJS React)
+- /libraries contains a lot of services shared between backend and frontend components.
+
+Lite-mode deployments now run the frontend, backend, and job scheduler inside one app container with Postgres as the only required external service.
 
 We are using only pnpm, don't use any other dependency manager.
 Never install frontend components from npmjs, focus on writing native components.
@@ -59,3 +60,4 @@ const useCommunity = () => {
 
 - Linting of the project can run only from the root.
 - Use only pnpm.
+- For local docker testing, prefer `docker compose up -d --build` from the repo root.

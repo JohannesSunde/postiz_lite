@@ -24,6 +24,7 @@ import { VideoFrame } from '@gitroom/react/helpers/video.frame';
 import { useUppyUploader } from '@gitroom/frontend/components/media/new.uploader';
 import dynamic from 'next/dynamic';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
+import { useVariables } from '@gitroom/react/helpers/variable.context';
 import { AiImage } from '@gitroom/frontend/components/launches/ai.image';
 import { DropFiles } from '@gitroom/frontend/components/layout/drop.files';
 import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
@@ -652,6 +653,7 @@ export const MultiMediaComponent: FC<{
     mediaNotAvailable,
   } = props;
   const user = useUser();
+  const { heavyFeaturesEnabled } = useVariables();
   const modals = useModals();
   const t = useT();
   useEffect(() => {
@@ -830,9 +832,11 @@ export const MultiMediaComponent: FC<{
                 </div>
               </div>
 
-              <ThirdPartyMedia allData={allData} onChange={changeMedia} />
+              {heavyFeaturesEnabled && (
+                <ThirdPartyMedia allData={allData} onChange={changeMedia} />
+              )}
 
-              {!!user?.tier?.ai && (
+              {!!user?.tier?.ai && heavyFeaturesEnabled && (
                 <>
                   <AiImage value={text} onChange={changeMedia} />
                   <AiVideo value={text} onChange={changeMedia} />

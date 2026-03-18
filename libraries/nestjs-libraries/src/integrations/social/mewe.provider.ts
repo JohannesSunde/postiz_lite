@@ -272,6 +272,7 @@ export class MeweProvider extends SocialAbstract implements SocialProvider {
 
     if (!postResponse.ok) {
       const errorText = await postResponse.text();
+      console.log(errorText);
       const handleError = this.handleErrors(errorText);
       if (handleError) {
         throw new Error(handleError.value);
@@ -279,9 +280,15 @@ export class MeweProvider extends SocialAbstract implements SocialProvider {
       throw new Error('Failed to create MeWe post');
     }
 
-    const postId = makeId(12);
+    let postId = '';
+    try {
+      const responseData = await postResponse.json();
+      postId = responseData.postId || responseData.id || makeId(12);
+    } catch {
+      postId = makeId(12);
+    }
 
-    const releaseURL = postType === 'timeline' ? `https://mewe.com/${integration.profile}/posts` : `https://mewe.com/group/${firstPost.settings.group}`;
+    const releaseURL = `${this.meweHost}/post/show/${postId}`;
 
     return [
       {

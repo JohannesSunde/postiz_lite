@@ -2,19 +2,29 @@ import { Injectable } from '@nestjs/common';
 import { NotificationsRepository } from '@gitroom/nestjs-libraries/database/prisma/notifications/notifications.repository';
 import { EmailService } from '@gitroom/nestjs-libraries/services/email.service';
 import { OrganizationRepository } from '@gitroom/nestjs-libraries/database/prisma/organizations/organization.repository';
-import { TemporalService } from 'nestjs-temporal-core';
-import { TypedSearchAttributes } from '@temporalio/common';
-import { organizationId } from '@gitroom/nestjs-libraries/temporal/temporal.search.attribute';
 
 export type NotificationType = 'success' | 'fail' | 'info';
 
+type DigestEntry = {
+  title: string;
+  message: string;
+  type: NotificationType;
+};
+
 @Injectable()
 export class NotificationService {
+  private digestQueues = new Map<
+    string,
+    {
+      items: DigestEntry[];
+      timer?: NodeJS.Timeout;
+    }
+  >();
+
   constructor(
     private _notificationRepository: NotificationsRepository,
     private _emailService: EmailService,
-    private _organizationRepository: OrganizationRepository,
-    private _temporalService: TemporalService
+    private _organizationRepository: OrganizationRepository
   ) {}
 
   getMainPageCount(organizationId: string, userId: string) {
@@ -52,37 +62,62 @@ export class NotificationService {
     }
 
     if (digest) {
-      try {
-        await this._temporalService.client
-          .getRawClient()
-          ?.workflow.signalWithStart('digestEmailWorkflow', {
-            workflowId: 'digest_email_workflow_' + orgId,
-            signal: 'email',
-            signalArgs: [
-              [
-                {
-                  title: subject,
-                  message,
-                  type,
-                },
-              ],
-            ],
-            taskQueue: 'main',
-            workflowIdConflictPolicy: 'USE_EXISTING',
-            args: [{ organizationId: orgId }],
-            typedSearchAttributes: new TypedSearchAttributes([
-              {
-                key: organizationId,
-                value: orgId,
-              },
-            ]),
-          });
-      } catch (err) {}
-
+      this.queueDigest(orgId, { title: subject, message, type });
       return;
     }
 
     await this.sendEmailsToOrg(orgId, subject, message, type);
+  }
+
+  private queueDigest(orgId: string, entry: DigestEntry) {
+    const current = this.digestQueues.get(orgId) || { items: [] as DigestEntry[] };
+    current.items.push(entry);
+
+    if (!current.timer) {
+      current.timer = setTimeout(() => {
+        void this.flushDigest(orgId);
+      }, 3600000);
+    }
+
+    this.digestQueues.set(orgId, current);
+  }
+
+  private async flushDigest(orgId: string) {
+    const batch = this.digestQueues.get(orgId);
+    if (!batch) {
+      return;
+    }
+
+    if (batch.timer) {
+      clearTimeout(batch.timer);
+    }
+
+    this.digestQueues.delete(orgId);
+
+    const org = await this._organizationRepository.getAllUsersOrgs(orgId);
+    for (const user of org?.users || []) {
+      const allowFailure = user.user.sendFailureEmails ? 'fail' : null;
+      const allowSuccess = user.user.sendSuccessEmails ? 'success' : null;
+
+      const toSend = batch.items.filter(
+        (email) =>
+          email.type === allowFailure ||
+          email.type === allowSuccess ||
+          email.type === 'info'
+      );
+
+      if (toSend.length === 0) {
+        continue;
+      }
+
+      await this.sendEmail(
+        user.user.email,
+        toSend.length === 1
+          ? toSend[0].title
+          : `[Postiz] Your latest notifications`,
+        toSend.map((p) => p.message).join('<br/>')
+      );
+    }
   }
 
   async sendEmailsToOrg(

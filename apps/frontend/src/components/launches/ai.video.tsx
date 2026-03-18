@@ -12,6 +12,7 @@ import { FormProvider, useForm } from 'react-hook-form';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
 import { VideoContextWrapper } from '@gitroom/frontend/components/videos/video.context.wrapper';
 import { useToaster } from '@gitroom/react/toaster/toaster';
+import { useVariables } from '@gitroom/react/helpers/variable.context';
 
 export const Modal: FC<{
   close: () => void;
@@ -156,6 +157,11 @@ export const AiVideo: FC<{
   const [modal, setModal] = useState(false);
   const fetch = useFetch();
   const { isTrailing } = useUser();
+  const { heavyFeaturesEnabled } = useVariables();
+
+  if (!heavyFeaturesEnabled) {
+    return null;
+  }
 
   const loadVideoList = useCallback(async () => {
     return (await (await fetch('/media/video-options')).json()).filter(

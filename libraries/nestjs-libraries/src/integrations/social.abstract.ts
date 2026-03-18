@@ -1,8 +1,24 @@
 import { timer } from '@gitroom/helpers/utils/timer';
 import { Integration } from '@prisma/client';
-import { ApplicationFailure } from '@temporalio/activity';
 
-export class RefreshToken extends ApplicationFailure {
+class SocialFailure extends Error {
+  constructor(
+    message: string,
+    public readonly type: 'refresh_token' | 'bad_body',
+    public readonly nonRetryable: boolean,
+    public readonly details: {
+      identifier: string;
+      json: string;
+      body: BodyInit;
+    }[]
+  ) {
+    super(message);
+    this.name = 'SocialFailure';
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
+export class RefreshToken extends SocialFailure {
   constructor(identifier: string, json: string, body: BodyInit, message = '') {
     super(message, 'refresh_token', true, [
       {
@@ -14,7 +30,7 @@ export class RefreshToken extends ApplicationFailure {
   }
 }
 
-export class BadBody extends ApplicationFailure {
+export class BadBody extends SocialFailure {
   constructor(identifier: string, json: string, body: BodyInit, message = '') {
     super(message, 'bad_body', true, [
       {

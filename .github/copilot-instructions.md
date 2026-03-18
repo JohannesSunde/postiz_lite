@@ -3,9 +3,9 @@
 
 ## Project Architecture
 - Monorepo managed by NX, with apps in `apps/` and shared code in `libraries/`.
-- Main services: `frontend` (Next.js), `backend` (NestJS), `cron`, `commands`, `extension`, `sdk`, and `workers`.
+- Main services: `frontend` (Next.js), `backend` (NestJS), `extension`, and `sdk`.
 - Data layer uses Prisma ORM (`libraries/nestjs-libraries/src/database/prisma/schema.prisma`) with PostgreSQL as the default database.
-- Redis (BullMQ) is used for queues and caching.
+- Lite mode now removes Redis and Temporal from the default runtime path.
 - Email notifications via Resend.
 - Social login integrations (Instagram, Facebook) and Make.com/N8N integrations.
 
@@ -17,7 +17,7 @@
 - Test: `pnpm test` (Jest, coverage enabled)
 - Individual app scripts are in each app's `package.json` (e.g., `pnpm --filter ./apps/backend run dev`).
 - Prisma DB commands: `pnpm run prisma-generate`, `pnpm run prisma-db-push`, `pnpm run prisma-reset`.
-- Docker: `docker compose -f ./docker-compose.dev.yaml up -d`
+- Docker: `docker compose up -d --build`
 
 ## Conventions & Patterns
 - Use conventional commits (`feat:`, `fix:`, `chore:`).
@@ -36,6 +36,7 @@
 - `apps/` — Main services and applications
 - `libraries/` — Shared code and modules
 - `docker-compose.dev.yaml` — Local development Docker setup
+- `docker-compose.yaml` - Lite production Docker setup
 - `.env` — Environment configuration
 - `jest.config.ts` — Test configuration
 - `pnpm-workspace.yaml` — Workspace package management
@@ -113,4 +114,3 @@ logger.fatal("Database connection pool exhausted", {
 ---
 
 For questions or unclear conventions, check the main README or ask for clarification in your PR description.
-

@@ -128,7 +128,7 @@ export class NoAuthIntegrationsController {
         }
 
         if (refresh && integrationProvider.reConnect) {
-          console.log('reconnect');
+          /** handled */
           try {
             const newAuth = await integrationProvider.reConnect(
               auth.id,
@@ -242,7 +242,7 @@ export class NoAuthIntegrationsController {
     this._refreshIntegrationService
       .startRefreshWorkflow(org.id, createUpdate.id, integrationProvider)
       .catch((err) => {
-        console.log(err);
+        /** handled */
       });
 
     // Fetch pages if this is a two-step provider and not a refresh
@@ -262,7 +262,7 @@ export class NoAuthIntegrationsController {
           pages = await integrationProvider[fetchMethod](accessToken);
         }
       } catch (err) {
-        console.log('Failed to fetch pages:', err);
+        /** handled */
       }
     }
 

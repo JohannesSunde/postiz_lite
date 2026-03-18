@@ -3,6 +3,7 @@ import {
   Injectable,
   ValidationPipe,
 } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { PostsRepository } from '@gitroom/nestjs-libraries/database/prisma/posts/posts.repository';
 import { CreatePostDto } from '@gitroom/nestjs-libraries/dtos/posts/create.post.dto';
 import dayjs from 'dayjs';
@@ -10,7 +11,7 @@ import { IntegrationManager } from '@gitroom/nestjs-libraries/integrations/integ
 import { Integration, Post, Media, From, State } from '@prisma/client';
 import { GetPostsDto } from '@gitroom/nestjs-libraries/dtos/posts/get.posts.dto';
 import { GetPostsListDto } from '@gitroom/nestjs-libraries/dtos/posts/get.posts.list.dto';
-import { shuffle } from 'lodash';
+import { capitalize, shuffle } from 'lodash';
 import { CreateGeneratedPostsDto } from '@gitroom/nestjs-libraries/dtos/generator/create.generated.posts.dto';
 import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/integrations/integration.service';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
@@ -19,24 +20,21 @@ import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/me
 import { ShortLinkService } from '@gitroom/nestjs-libraries/short-linking/short.link.service';
 import { CreateTagDto } from '@gitroom/nestjs-libraries/dtos/posts/create.tag.dto';
 import { minifyPostsList, minifyPosts } from '@gitroom/helpers/utils/posts.list.minify';
+import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validation';
 import axios from 'axios';
 import sharp from 'sharp';
 import { UploadFactory } from '@gitroom/nestjs-libraries/upload/upload.factory';
 import { Readable } from 'stream';
-import { OpenaiService } from '@gitroom/nestjs-libraries/openai/openai.service';
 dayjs.extend(utc);
 import * as Sentry from '@sentry/nestjs';
-import { TemporalService } from 'nestjs-temporal-core';
-import { TypedSearchAttributes } from '@temporalio/common';
-import {
-  organizationId,
-  postId as postIdSearchParam,
-} from '@gitroom/nestjs-libraries/temporal/temporal.search.attribute';
 import { AnalyticsData } from '@gitroom/nestjs-libraries/integrations/social/social.integrations.interface';
 import { timer } from '@gitroom/helpers/utils/timer';
 import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
 import { RefreshToken } from '@gitroom/nestjs-libraries/integrations/social.abstract';
 import { RefreshIntegrationService } from '@gitroom/nestjs-libraries/integrations/refresh.integration.service';
+import { NotificationService } from '@gitroom/nestjs-libraries/database/prisma/notifications/notification.service';
+import { WebhooksService } from '@gitroom/nestjs-libraries/database/prisma/webhooks/webhooks.service';
+import { OrganizationService } from '@gitroom/nestjs-libraries/database/prisma/organizations/organization.service';
 
 type PostWithConditionals = Post & {
   integration?: Integration;
@@ -46,15 +44,25 @@ type PostWithConditionals = Post & {
 @Injectable()
 export class PostsService {
   private storage = UploadFactory.createStorage();
+  private runningPosts = new Set<string>();
+  private streakTimers = new Map<
+    string,
+    {
+      start?: NodeJS.Timeout;
+      end?: NodeJS.Timeout;
+    }
+  >();
   constructor(
     private _postRepository: PostsRepository,
     private _integrationManager: IntegrationManager,
     private _integrationService: IntegrationService,
     private _mediaService: MediaService,
     private _shortLinkService: ShortLinkService,
-    private _openaiService: OpenaiService,
-    private _temporalService: TemporalService,
-    private _refreshIntegrationService: RefreshIntegrationService
+    private _refreshIntegrationService: RefreshIntegrationService,
+    private _notificationService: NotificationService,
+    private _organizationService: OrganizationService,
+    private _webhooksService: WebhooksService,
+    private _moduleRef: ModuleRef
   ) {}
 
   searchForMissingThreeHoursPosts() {
@@ -63,6 +71,405 @@ export class PostsService {
 
   updatePost(id: string, postId: string, releaseURL: string) {
     return this._postRepository.updatePost(id, postId, releaseURL);
+  }
+
+  getDuePosts() {
+    return this._postRepository.getDuePosts();
+  }
+
+  async processDuePosts() {
+    const duePosts = await this.getDuePosts();
+    for (const post of duePosts) {
+      await this.runPostWorkflow(post.id, post.organizationId, false);
+    }
+  }
+
+  private async notify(
+    orgId: string,
+    subject: string,
+    message: string,
+    sendEmail = false,
+    digest = false,
+    type: 'success' | 'fail' | 'info' = 'success'
+  ) {
+    return this._notificationService.inAppNotification(
+      orgId,
+      subject,
+      message,
+      sendEmail,
+      digest,
+      type
+    );
+  }
+
+  private scheduleStreak(organizationId: string) {
+    const existing = this.streakTimers.get(organizationId);
+    if (existing?.start) {
+      clearTimeout(existing.start);
+    }
+    if (existing?.end) {
+      clearTimeout(existing.end);
+    }
+
+    void this._organizationService.setStreak(organizationId, 'start');
+
+    const reminder = setTimeout(async () => {
+      const userOrgs = await this._organizationService.getTeam(organizationId);
+
+      for (const user of userOrgs.users) {
+        if (!user.user.sendStreakEmails) {
+          continue;
+        }
+
+        await this._notificationService.sendEmail(
+          user.user.email,
+          'Streak Reminder',
+          '<p>You are about to lose your streak in two hours! schedule a post now to keep it!</p>'
+        );
+      }
+    }, 79_200_000);
+
+    const end = setTimeout(async () => {
+      await this._organizationService.setStreak(organizationId, 'end');
+    }, 86_400_000);
+
+    this.streakTimers.set(organizationId, { start: reminder, end });
+  }
+
+  private async sendWebhooks(postId: string, orgId: string, integrationId: string) {
+    const webhooks = (await this._webhooksService.getWebhooks(orgId)).filter(
+      (f) =>
+        f.integrations.length === 0 ||
+        f.integrations.some((i) => i.integration.id === integrationId)
+    );
+
+    const post = await this._postRepository.getPostByForWebhookId(postId);
+    return Promise.all(
+      webhooks.map(async (webhook) => {
+        try {
+          await fetch(webhook.url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(post),
+          });
+        } catch (e) {
+          /** empty */
+        }
+      })
+    );
+  }
+
+  private async postSocial(integration: Integration, posts: Post[]) {
+    const getIntegration = this._integrationManager.getSocialIntegration(
+      integration.providerIdentifier
+    );
+
+    const newPosts = await this.updateTags(integration.organizationId, posts);
+
+    return getIntegration.post(
+      integration.internalId,
+      integration.token,
+      await Promise.all(
+        (newPosts || []).map(async (p) => ({
+          id: p.id,
+          message: stripHtmlValidation(
+            getIntegration.editor,
+            p.content,
+            true,
+            false,
+            !/<\/?[a-z][\s\S]*>/i.test(p.content),
+            getIntegration.mentionFormat
+          ),
+          settings: JSON.parse(p.settings || '{}'),
+          media: await this.updateMedia(
+            p.id,
+            JSON.parse(p.image || '[]'),
+            getIntegration?.convertToJPEG || false
+          ),
+        }))
+      ),
+      integration
+    );
+  }
+
+  private async postComment(
+    postId: string,
+    lastPostId: string | undefined,
+    integration: Integration,
+    posts: Post[]
+  ) {
+    const getIntegration = this._integrationManager.getSocialIntegration(
+      integration.providerIdentifier
+    );
+
+    const newPosts = await this.updateTags(integration.organizationId, posts);
+
+    return getIntegration.comment(
+      integration.internalId,
+      postId,
+      lastPostId,
+      integration.token,
+      await Promise.all(
+        (newPosts || []).map(async (p) => ({
+          id: p.id,
+          message: stripHtmlValidation(
+            getIntegration.editor,
+            p.content,
+            true,
+            false,
+            !/<\/?[a-z][\s\S]*>/i.test(p.content),
+            getIntegration.mentionFormat
+          ),
+          settings: JSON.parse(p.settings || '{}'),
+          media: await this.updateMedia(
+            p.id,
+            JSON.parse(p.image || '[]'),
+            getIntegration?.convertToJPEG || false
+          ),
+        }))
+      ),
+      integration
+    );
+  }
+
+  private async runPlugs(
+    post: Post & { integration?: Integration },
+    postsResults: { postId: string; releaseURL?: string }[]
+  ) {
+    const internalPlugsList = await this.checkInternalPlug(
+      post.integration!,
+      post.organizationId,
+      post.id,
+      JSON.parse(post.settings || '{}')
+    );
+
+    const globalPlugsList = (await this.checkPlugs(
+      post.organizationId,
+      post.integration!.providerIdentifier,
+      post.integration!.id
+    )).reduce((all: any[], current: any) => {
+      for (let i = 1; i <= current.totalRuns; i++) {
+        all.push({
+          ...current,
+          delay: current.delay * i,
+        });
+      }
+
+      return all;
+    }, []);
+
+    const repeatPost = !post.intervalInDays
+      ? []
+      : [
+          {
+            type: 'repeat-post',
+            delay: post.intervalInDays * 24 * 60 * 60 * 1000,
+          },
+        ];
+
+    const list = [...internalPlugsList, ...globalPlugsList, ...repeatPost].sort(
+      (a: any, b: any) => Number(a.delay || 0) - Number(b.delay || 0)
+    );
+
+    while (list.length > 0) {
+      const todo = list.shift();
+      if (!todo) {
+        continue;
+      }
+
+      if (todo.type === 'repeat-post') {
+        setTimeout(() => {
+          void this.runPostWorkflow(post.id, post.organizationId, true);
+        }, Math.max(0, Number(todo.delay ?? 0)));
+        continue;
+      }
+
+      await timer(Math.max(0, Number(todo.delay ?? 0)));
+
+      if (todo.type === 'internal-plug') {
+        await this._integrationService.processInternalPlug({
+          ...todo,
+          post: postsResults[0].postId,
+        });
+      }
+
+      if (todo.type === 'global') {
+        await this._integrationService.processPlugs({
+          ...todo,
+          postId: postsResults[0].postId,
+        });
+      }
+    }
+  }
+
+  async runPostWorkflow(
+    postId: string,
+    organizationId: string,
+    postNow = false
+  ) {
+    if (this.runningPosts.has(postId)) {
+      return false;
+    }
+
+    this.runningPosts.add(postId);
+
+    try {
+      const postsListBefore = await this.getPostsRecursively(
+        postId,
+        true,
+        organizationId,
+        true
+      );
+      const [post] = postsListBefore;
+
+      if (!post || (!postNow && post.state !== 'QUEUE')) {
+        return false;
+      }
+
+      if (!postNow) {
+        await timer(
+          dayjs(post.publishDate).isBefore(dayjs())
+            ? 0
+            : dayjs(post.publishDate).diff(dayjs(), 'millisecond')
+        );
+      }
+
+      if (post.integration?.refreshNeeded) {
+        await this.notify(
+          post.organizationId,
+          `We couldn't post to ${post.integration?.providerIdentifier} for ${post?.integration?.name}`,
+          `We couldn't post to ${post.integration?.providerIdentifier} for ${post?.integration?.name} because you need to reconnect it. Please enable it and try again.`,
+          true,
+          false,
+          'info'
+        );
+        return false;
+      }
+
+      if (post.integration?.disabled) {
+        await this.notify(
+          post.organizationId,
+          `We couldn't post to ${post.integration?.providerIdentifier} for ${post?.integration?.name}`,
+          `We couldn't post to ${post.integration?.providerIdentifier} for ${post?.integration?.name} because it's disabled. Please enable it and try again.`,
+          true,
+          false,
+          'info'
+        );
+        return false;
+      }
+
+      const toComment: boolean =
+        postsListBefore.length === 1
+          ? false
+          : !!this._integrationManager.getSocialIntegration(
+              post.integration.providerIdentifier
+            ).comment;
+
+      const postsList = toComment ? postsListBefore : [postsListBefore[0]];
+      const postsResults: { postId: string; releaseURL?: string }[] = [];
+      const iterate = Array.from({ length: 5 });
+
+      for (let i = 0; i < postsList.length; i++) {
+        const before = postsResults.length;
+        for (const _ of iterate) {
+          try {
+            if (i === 0) {
+              postsResults.push(
+                ...(await this.postSocial(post.integration as Integration, [
+                  postsList[i],
+                ]))
+              );
+            } else {
+              if (postsList[i].delay) {
+                await timer(
+                  60000 * Math.max(0, Number(postsList[i].delay ?? 0))
+                );
+              }
+
+              postsResults.push(
+                ...(await this.postComment(
+                  postsResults[0].postId,
+                  postsResults.length === 1
+                    ? undefined
+                    : postsResults[i - 1].postId,
+                  post.integration,
+                  [postsList[i]]
+                ))
+              );
+            }
+
+            await this.updatePost(
+              postsList[i].id,
+              postsResults[i].postId,
+              postsResults[i].releaseURL || ''
+            );
+
+            if (i === 0) {
+              await this.notify(
+                post.integration.organizationId,
+                `Your post has been published on ${capitalize(
+                  post.integration.providerIdentifier
+                )}`,
+                `Your post has been published on ${capitalize(
+                  post.integration.providerIdentifier
+                )} at ${postsResults[0].releaseURL}`,
+                true,
+                true
+              );
+            }
+
+            break;
+          } catch (err) {
+            if (err instanceof RefreshToken) {
+              const refresh = await this._refreshIntegrationService.refresh(
+                post.integration
+              );
+              if (!refresh || !refresh.accessToken) {
+                await this.changeState(postsList[0].id, 'ERROR', err, postsList);
+                return false;
+              }
+
+              post.integration.token = refresh.accessToken;
+              continue;
+            }
+
+            await this.changeState(postsList[0].id, 'ERROR', err, postsList);
+
+            await this.notify(
+              post.organizationId,
+              `Error posting${i === 0 ? ' ' : ' comments '}on ${
+                post.integration?.providerIdentifier
+              } for ${post?.integration?.name}`,
+              `An error occurred while posting${i === 0 ? ' ' : ' comments '}on ${
+                post.integration?.providerIdentifier
+              }${err instanceof Error && err.message ? `: ${err.message}` : ``}`,
+              true,
+              false,
+              'fail'
+            );
+          }
+        }
+
+        if (postsResults.length === before) {
+          return false;
+        }
+      }
+
+      await this.sendWebhooks(
+        postsResults[0].postId,
+        post.organizationId,
+        post.integration.id
+      );
+
+      await this.runPlugs(post as any, postsResults);
+      this.scheduleStreak(post.organizationId);
+
+      return postsResults;
+    } finally {
+      this.runningPosts.delete(postId);
+    }
   }
 
   async getMissingContent(
@@ -586,33 +993,7 @@ export class PostsService {
   }
 
   async deletePost(orgId: string, group: string) {
-    const post = await this._postRepository.deletePost(orgId, group);
-
-    if (post?.id) {
-      try {
-        const workflows = this._temporalService.client
-          .getRawClient()
-          ?.workflow.list({
-            query: `postId="${post.id}" AND ExecutionStatus="Running"`,
-          });
-
-        for await (const executionInfo of workflows) {
-          try {
-            const workflow =
-              await this._temporalService.client.getWorkflowHandle(
-                executionInfo.workflowId
-              );
-            if (
-              workflow &&
-              (await workflow.describe()).status.name !== 'TERMINATED'
-            ) {
-              await workflow.terminate();
-            }
-          } catch (err) {}
-        }
-      } catch (err) {}
-    }
-
+    await this._postRepository.deletePost(orgId, group);
     return { error: true };
   }
 
@@ -630,58 +1011,9 @@ export class PostsService {
     orgId: string,
     state: State
   ) {
-    try {
-      const workflows = this._temporalService.client
-        .getRawClient()
-        ?.workflow.list({
-          query: `postId="${postId}" AND ExecutionStatus="Running"`,
-        });
-
-      for await (const executionInfo of workflows) {
-        try {
-          const workflow = await this._temporalService.client.getWorkflowHandle(
-            executionInfo.workflowId
-          );
-          if (
-            workflow &&
-            (await workflow.describe()).status.name !== 'TERMINATED'
-          ) {
-            await workflow.terminate();
-          }
-        } catch (err) {}
-      }
-    } catch (err) {}
-
     if (state === 'DRAFT') {
       return;
     }
-
-    try {
-      await this._temporalService.client
-        .getRawClient()
-        ?.workflow.start('postWorkflowV101', {
-          workflowId: `post_${postId}`,
-          taskQueue: 'main',
-          workflowIdConflictPolicy: 'TERMINATE_EXISTING',
-          args: [
-            {
-              taskQueue: taskQueue,
-              postId: postId,
-              organizationId: orgId,
-            },
-          ],
-          typedSearchAttributes: new TypedSearchAttributes([
-            {
-              key: postIdSearchParam,
-              value: postId,
-            },
-            {
-              key: organizationId,
-              value: orgId,
-            },
-          ]),
-        });
-    } catch (err) {}
   }
 
   async createPost(orgId: string, body: CreatePostDto): Promise<any[]> {
@@ -711,12 +1043,9 @@ export class PostsService {
       }
 
       if (body.type !== 'update') {
-        this.startWorkflow(
-          post.settings.__type.split('-')[0].toLowerCase(),
-          posts[0].id,
-          orgId,
-          posts[0].state
-        ).catch((err) => {});
+        if (body.type === 'now') {
+          void this.runPostWorkflow(posts[0].id, orgId, true);
+        }
       }
 
       Sentry.metrics.count('post_created', 1);
@@ -730,7 +1059,18 @@ export class PostsService {
   }
 
   async separatePosts(content: string, len: number) {
-    return this._openaiService.separatePosts(content, len);
+    const { OpenaiService } = require(
+      '@gitroom/nestjs-libraries/openai/openai.service'
+    );
+    const openaiService = this._moduleRef.get(OpenaiService, {
+      strict: false,
+    });
+
+    if (!openaiService) {
+      throw new Error('OpenAI service is not available');
+    }
+
+    return openaiService.separatePosts(content, len);
   }
 
   async changeState(id: string, state: State, err?: any, body?: any) {
@@ -756,14 +1096,9 @@ export class PostsService {
     );
 
     if (action === 'schedule') {
-      try {
-        await this.startWorkflow(
-          getPostById.integration.providerIdentifier.split('-')[0].toLowerCase(),
-          getPostById.id,
-          orgId,
-          getPostById.state === 'DRAFT' ? 'DRAFT' : 'QUEUE'
-        );
-      } catch (err) {}
+      if (dayjs(date).isBefore(dayjs()) && getPostById.state !== 'DRAFT') {
+        void this.runPostWorkflow(getPostById.id, orgId, true);
+      }
     }
 
     return newDate;

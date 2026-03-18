@@ -16,16 +16,31 @@ import { Integration } from '@prisma/client';
 import ImageWithFallback from '@gitroom/react/helpers/image.with.fallback';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import { useFireEvents } from '@gitroom/helpers/utils/use.fire.events';
-import { Calendar } from './calendar';
 import { useDrag, useDrop } from 'react-dnd';
 import { DNDProvider } from '@gitroom/frontend/components/launches/helpers/dnd.provider';
-import { GeneratorComponent } from './generator/generator';
 import { useVariables } from '@gitroom/react/helpers/variable.context';
 import { NewPost } from '@gitroom/frontend/components/launches/new.post';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useIntegrationList } from '@gitroom/frontend/components/launches/helpers/use.integration.list';
 import useCookie from 'react-use-cookie';
 import { Onboarding } from '@gitroom/frontend/components/onboarding/onboarding';
+import dynamic from 'next/dynamic';
+
+const GeneratorComponent = dynamic(
+  () => import('./generator/generator').then((m) => m.GeneratorComponent),
+  {
+    ssr: false,
+    loading: () => <div className="min-h-[44px]" />,
+  }
+);
+
+const Calendar = dynamic(
+  () => import('./calendar').then((m) => m.Calendar),
+  {
+    ssr: false,
+    loading: () => <div className="flex-1 min-h-[600px]" />,
+  }
+);
 
 export const SVGLine = () => {
   return (
@@ -353,7 +368,7 @@ export const MenuComponent: FC<
 export const LaunchesComponent = () => {
   const fetch = useFetch();
   const user = useUser();
-  const { billingEnabled } = useVariables();
+  const { billingEnabled, heavyFeaturesEnabled } = useVariables();
   const router = useRouter();
   const search = useSearchParams();
   const toast = useToaster();
@@ -542,7 +557,8 @@ export const LaunchesComponent = () => {
                 {sortedIntegrations?.length > 0 && <NewPost />}
                 {sortedIntegrations?.length > 0 &&
                   user?.tier?.ai &&
-                  billingEnabled && <GeneratorComponent />}
+                  billingEnabled &&
+                  heavyFeaturesEnabled && <GeneratorComponent />}
               </div>
             </div>
             <div className="gap-[32px] flex flex-col select-none flex-1">

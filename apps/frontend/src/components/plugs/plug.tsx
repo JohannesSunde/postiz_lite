@@ -8,9 +8,8 @@ import {
 import { Button } from '@gitroom/react/form/button';
 import React, { FC, useCallback, useEffect, useMemo, useState } from 'react';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
-import useSWR, { mutate } from 'swr';
+import useSWR from 'swr';
 import { useModals } from '@gitroom/frontend/components/layout/new-modal';
-import { TopTitle } from '@gitroom/frontend/components/launches/helpers/top.title.component';
 import {
   FormProvider,
   SubmitHandler,
@@ -18,14 +17,21 @@ import {
   useFormContext,
 } from 'react-hook-form';
 import { Input } from '@gitroom/react/form/input';
-import { CopilotTextarea } from '@copilotkit/react-textarea';
 import clsx from 'clsx';
 import { string, object } from 'yup';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { Slider } from '@gitroom/react/form/slider';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
-import { ModalWrapperComponent } from '@gitroom/frontend/components/new-launch/modal.wrapper.component';
+import { useVariables } from '@gitroom/react/helpers/variable.context';
+import dynamic from 'next/dynamic';
+
+const CopilotTextarea = dynamic(
+  () => import('@copilotkit/react-textarea').then((m) => m.CopilotTextarea),
+  {
+    ssr: false,
+  }
+);
 export function convertBackRegex(s: string) {
   const matches = s.match(/\/(.*)\/([a-z]*)/);
   const pattern = matches?.[1] || '';
@@ -37,31 +43,48 @@ export const TextArea: FC<{
   placeHolder: string;
 }> = (props) => {
   const form = useFormContext();
-  const { onChange, onBlur, ...all } = form.register(props.name);
+  const { onChange, onBlur, ref, ...all } = form.register(props.name);
   const value = form.watch(props.name);
+  const { heavyFeaturesEnabled } = useVariables();
   return (
     <>
-      <textarea className="hidden" {...all}></textarea>
-      <CopilotTextarea
-        disableBranding={true}
-        placeholder={props.placeHolder}
-        value={value}
-        className={clsx(
-          '!min-h-40 !max-h-80 p-[24px] overflow-hidden bg-customColor2 outline-none rounded-[4px] border-fifth border'
-        )}
-        onChange={(e) => {
-          onChange({
-            target: {
-              name: props.name,
-              value: e.target.value,
-            },
-          });
-        }}
-        autosuggestionsConfig={{
-          textareaPurpose: `Assist me in writing social media posts.`,
-          chatApiConfigs: {},
-        }}
-      />
+      {heavyFeaturesEnabled ? (
+        <>
+          <textarea className="hidden" {...all} ref={ref} value={value || ''} readOnly />
+          <CopilotTextarea
+            disableBranding={true}
+            placeholder={props.placeHolder}
+            value={value || ''}
+            className={clsx(
+              '!min-h-40 !max-h-80 p-[24px] overflow-hidden bg-customColor2 outline-none rounded-[4px] border-fifth border'
+            )}
+            onChange={(e) => {
+              onChange({
+                target: {
+                  name: props.name,
+                  value: e.target.value,
+                },
+              });
+            }}
+            autosuggestionsConfig={{
+              textareaPurpose: `Assist me in writing social media posts.`,
+              chatApiConfigs: {},
+            }}
+          />
+        </>
+      ) : (
+        <textarea
+          {...all}
+          ref={ref}
+          value={value || ''}
+          onBlur={onBlur}
+          onChange={onChange}
+          placeholder={props.placeHolder}
+          className={clsx(
+            '!min-h-40 !max-h-80 p-[24px] overflow-hidden bg-customColor2 outline-none rounded-[4px] border-fifth border w-full'
+          )}
+        />
+      )}
       <div className="text-red-400 text-[12px]">
         {form?.formState?.errors?.[props.name]?.message as string}
       </div>

@@ -1,30 +1,57 @@
-import { Redis } from 'ioredis';
+type RedisEntry = {
+  value: string;
+  expiresAt?: number;
+};
 
-// Create a mock Redis implementation for testing environments
-class MockRedis {
-  private data: Map<string, any> = new Map();
+class EphemeralStore {
+  private data = new Map<string, RedisEntry>();
 
-  async get(key: string) {
-    return this.data.get(key);
+  private isExpired(entry: RedisEntry) {
+    return typeof entry.expiresAt === 'number' && entry.expiresAt <= Date.now();
   }
 
-  async set(key: string, value: any) {
-    this.data.set(key, value);
+  private pruneKey(key: string) {
+    const entry = this.data.get(key);
+    if (entry && this.isExpired(entry)) {
+      this.data.delete(key);
+      return true;
+    }
+
+    return false;
+  }
+
+  async get(key: string) {
+    if (this.pruneKey(key)) {
+      return null;
+    }
+
+    return this.data.get(key)?.value ?? null;
+  }
+
+  async set(key: string, value: any, ...args: any[]) {
+    const ttlMode = String(args[0] || '').toUpperCase();
+    const ttlValue = Number(args[1] || 0);
+    const entry: RedisEntry = {
+      value: String(value),
+    };
+
+    if (ttlMode === 'EX' && ttlValue > 0) {
+      entry.expiresAt = Date.now() + ttlValue * 1000;
+    }
+
+    if (ttlMode === 'PX' && ttlValue > 0) {
+      entry.expiresAt = Date.now() + ttlValue;
+    }
+
+    this.data.set(key, entry);
     return 'OK';
   }
 
   async del(key: string) {
-    this.data.delete(key);
-    return 1;
+    return this.data.delete(key) ? 1 : 0;
   }
-
-  // Add other Redis methods as needed for your tests
 }
 
-// Use real Redis if REDIS_URL is defined, otherwise use MockRedis
-export const ioRedis = process.env.REDIS_URL
-  ? new Redis(process.env.REDIS_URL, {
-      maxRetriesPerRequest: null,
-      connectTimeout: 10000,
-    })
-  : (new MockRedis() as unknown as Redis); // Type cast to Redis to maintain interface compatibility
+// The self-hosted deployment now assumes a single app process, so a tiny
+// in-memory TTL store is enough for auth state and short-lived caches.
+export const ioRedis = new EphemeralStore();

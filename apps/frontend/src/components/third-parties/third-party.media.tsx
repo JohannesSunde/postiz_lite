@@ -19,6 +19,7 @@ import './providers/heygen.provider';
 import { thirdPartyList } from '@gitroom/frontend/components/third-parties/third-party.wrapper';
 import { useLaunchStore } from '@gitroom/frontend/components/new-launch/store';
 import { useModals } from '@gitroom/frontend/components/layout/new-modal';
+import { useVariables } from '@gitroom/react/helpers/variable.context';
 
 const ThirdPartyContext = createContext({
   id: '',
@@ -159,6 +160,11 @@ export const ThirdPartyMedia: FC<{
   const t = useT();
   const fetch = useFetch();
   const modals = useModals();
+  const { heavyFeaturesEnabled } = useVariables();
+
+  if (!heavyFeaturesEnabled) {
+    return null;
+  }
 
   const thirdParties = useCallback(async () => {
     return (await (await fetch('/third-party')).json()).filter(

@@ -14,9 +14,17 @@ import { PickPlatforms } from '@gitroom/frontend/components/launches/helpers/pic
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import clsx from 'clsx';
 import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
-import { CopilotTextarea } from '@copilotkit/react-textarea';
 import { Slider } from '@gitroom/react/form/slider';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
+import { useVariables } from '@gitroom/react/helpers/variable.context';
+import dynamic from 'next/dynamic';
+
+const CopilotTextarea = dynamic(
+  () => import('@copilotkit/react-textarea').then((m) => m.CopilotTextarea),
+  {
+    ssr: false,
+  }
+);
 export const Autopost: FC = () => {
   const fetch = useFetch();
   const t = useT();
@@ -180,6 +188,7 @@ export const AddOrEditWebhook: FC<{
   const { data, reload } = props;
   const fetch = useFetch();
   const t = useT();
+  const { heavyFeaturesEnabled } = useVariables();
   const options = getOptions(t);
   const optionsChoose = getOptionsChoose(t);
   const postImmediately = getPostImmediately(t);
@@ -354,21 +363,40 @@ export const AddOrEditWebhook: FC<{
                 <div className={`text-[14px] mb-[6px]`}>
                   {t('post_content', 'Post content')}
                 </div>
-                <CopilotTextarea
-                  disableBranding={true}
-                  className={clsx(
-                    '!min-h-40 !max-h-80 p-2 overflow-x-hidden scrollbar scrollbar-thumb-[#612AD5] bg-customColor2 outline-none mb-[16px] border-fifth border rounded-[4px]'
-                  )}
-                  value={content}
-                  onChange={(e) => {
-                    form.setValue('content', e.target.value);
-                  }}
-                  placeholder={t('write_your_post_placeholder', 'Write your post...')}
-                  autosuggestionsConfig={{
-                    textareaPurpose: `Assist me in writing social media post`,
-                    chatApiConfigs: {},
-                  }}
-                />
+                {heavyFeaturesEnabled ? (
+                  <CopilotTextarea
+                    disableBranding={true}
+                    className={clsx(
+                      '!min-h-40 !max-h-80 p-2 overflow-x-hidden scrollbar scrollbar-thumb-[#612AD5] bg-customColor2 outline-none mb-[16px] border-fifth border rounded-[4px]'
+                    )}
+                    value={content || ''}
+                    onChange={(e) => {
+                      form.setValue('content', e.target.value);
+                    }}
+                    placeholder={t(
+                      'write_your_post_placeholder',
+                      'Write your post...'
+                    )}
+                    autosuggestionsConfig={{
+                      textareaPurpose: `Assist me in writing social media post`,
+                      chatApiConfigs: {},
+                    }}
+                  />
+                ) : (
+                  <textarea
+                    className={clsx(
+                      '!min-h-40 !max-h-80 p-2 overflow-x-hidden scrollbar scrollbar-thumb-[#612AD5] bg-customColor2 outline-none mb-[16px] border-fifth border rounded-[4px]'
+                    )}
+                    value={content || ''}
+                    onChange={(e) => {
+                      form.setValue('content', e.target.value);
+                    }}
+                    placeholder={t(
+                      'write_your_post_placeholder',
+                      'Write your post...'
+                    )}
+                  />
+                )}
               </>
             )}
             <Select

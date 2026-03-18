@@ -3,13 +3,21 @@ import { EmailInterface } from '@gitroom/nestjs-libraries/emails/email.interface
 import { ResendProvider } from '@gitroom/nestjs-libraries/emails/resend.provider';
 import { EmptyProvider } from '@gitroom/nestjs-libraries/emails/empty.provider';
 import { NodeMailerProvider } from '@gitroom/nestjs-libraries/emails/node.mailer.provider';
-import { TemporalService } from 'nestjs-temporal-core';
 import { timer } from '@gitroom/helpers/utils/timer';
 
 @Injectable()
 export class EmailService {
   emailService: EmailInterface;
-  constructor(private _temporalService: TemporalService) {
+  private queue: Array<{
+    to: string;
+    subject: string;
+    html: string;
+    addTo: 'top' | 'bottom';
+    replyTo?: string;
+  }> = [];
+  private draining = false;
+
+  constructor() {
     this.emailService = this.selectProvider(process.env.EMAIL_PROVIDER!);
     console.log('Email service provider:', this.emailService.name);
     for (const key of this.emailService.validateEnvKeys) {
@@ -41,16 +49,42 @@ export class EmailService {
     addTo: 'top' | 'bottom',
     replyTo?: string
   ) {
-    return this._temporalService.client
-      .getRawClient()
-      ?.workflow.signalWithStart('sendEmailWorkflow', {
-        taskQueue: 'main',
-        workflowId: 'send_email',
-        signal: 'sendEmail',
-        args: [{ queue: [] }],
-        signalArgs: [{ to, subject, html, replyTo, addTo }],
-        workflowIdConflictPolicy: 'USE_EXISTING',
-      });
+    this.queue[addTo === 'top' ? 'unshift' : 'push']({
+      to,
+      subject,
+      html,
+      addTo,
+      replyTo,
+    });
+
+    void this.drainQueue();
+    return true;
+  }
+
+  private async drainQueue() {
+    if (this.draining) {
+      return;
+    }
+
+    this.draining = true;
+
+    while (this.queue.length > 0) {
+      const email = this.queue.shift();
+      if (!email) {
+        continue;
+      }
+
+      await this.sendEmailSync(
+        email.to,
+        email.subject,
+        email.html,
+        email.replyTo
+      );
+
+      await timer(700);
+    }
+
+    this.draining = false;
   }
 
   async sendEmailSync(
