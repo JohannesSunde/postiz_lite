@@ -190,6 +190,39 @@ If PowerShell blocks the script, run this once in the current session:
 Set-ExecutionPolicy -Scope Process Bypass
 ```
 
+### Umbrel draft
+
+If you want to run Postiz on Umbrel 1.5, the repo now includes a draft app
+package under [`umbrel/postiz-lite`](umbrel/postiz-lite).
+It follows Umbrel's community app store layout and is tuned for the lite
+runtime path, but it still expects a prebuilt Postiz image to be loaded on the
+Umbrel host first.
+
+The Umbrel-specific walkthrough lives in [`umbrel/README.md`](umbrel/README.md).
+
+### Windows Docker dev stack
+
+If the production image build fails on your machine, use the Windows-friendly
+development stack instead:
+
+```powershell
+$env:DOCKER_CONFIG = "$PWD\.docker-config"
+docker compose -f docker-compose.windows-dev.yaml up -d --build
+```
+
+This starts Postgres plus the app in watch mode. Open:
+
+- `http://localhost:4200` for the frontend
+- `http://localhost:3000` for the backend
+
+The first run can take several minutes because Docker installs all workspace
+dependencies inside the container. To stop it later, run:
+
+```powershell
+$env:DOCKER_CONFIG = "$PWD\.docker-config"
+docker compose -f docker-compose.windows-dev.yaml down
+```
+
 ## Sponsor Postiz
 
 We now give a few options to Sponsor Postiz:

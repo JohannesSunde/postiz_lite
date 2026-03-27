@@ -1,0 +1,19 @@
+FROM node:22.20-bookworm-slim
+
+ENV NODE_ENV=development \
+  NEXT_TELEMETRY_DISABLED=1 \
+  PNPM_HOME=/pnpm \
+  PATH=/pnpm:$PATH \
+  CHOKIDAR_USEPOLLING=true \
+  WATCHPACK_POLLING=true
+
+RUN corepack enable && corepack prepare pnpm@10.6.1 --activate \
+  && apt-get update && apt-get install -y --no-install-recommends bash openssl \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY var/docker/start-windows-dev.sh /usr/local/bin/start-windows-dev.sh
+RUN chmod +x /usr/local/bin/start-windows-dev.sh
+
+CMD ["/usr/local/bin/start-windows-dev.sh"]
