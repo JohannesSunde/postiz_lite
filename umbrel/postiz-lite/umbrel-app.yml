@@ -1,0 +1,23 @@
+manifestVersion: 1
+id: postiz-lite
+category: social
+name: Postiz Lite
+version: "1.0.0"
+tagline: Lightweight self-hosted social media scheduler
+description: >-
+  Postiz Lite is a self-hosted social media scheduling app tuned for smaller
+  home servers. It runs the production frontend and backend together with a
+  separate Postgres database and keeps the heavier development features off by
+  default.
+releaseNotes: ""
+developer: Postiz
+website: https://postiz.com
+dependencies: []
+repo: https://github.com/gitroomhq/postiz-app
+support: https://github.com/gitroomhq/postiz-app/issues
+port: 4200
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+submitter: OpenAI

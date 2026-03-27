@@ -1,0 +1,64 @@
+version: "3.7"
+
+services:
+  app_proxy:
+    environment:
+      APP_HOST: postiz-lite_web_1
+      APP_PORT: 4200
+
+  web:
+    image: ${POSTIZ_IMAGE:-localhost/postiz:lite}
+    restart: on-failure
+    stop_grace_period: 1m
+    environment:
+      NODE_ENV: "production"
+      MAIN_URL: "http://${DEVICE_DOMAIN_NAME:-localhost}:4200"
+      FRONTEND_URL: "http://${DEVICE_DOMAIN_NAME:-localhost}:4200"
+      NEXT_PUBLIC_BACKEND_URL: "http://${DEVICE_DOMAIN_NAME:-localhost}:3000"
+      BACKEND_INTERNAL_URL: "http://localhost:3000"
+      JWT_SECRET: "replace-with-a-long-random-string"
+      DATABASE_URL: "postgresql://postiz-user:postiz-password@db:5432/postiz-db-local"
+      IS_GENERAL: "true"
+      DISABLE_REGISTRATION: "false"
+      POSTIZ_ENABLE_HEAVY_FEATURES: "false"
+      POSTIZ_ENABLE_SWAGGER: "false"
+      POSTIZ_RUN_DB_PUSH: "true"
+      PORT: "3000"
+      STORAGE_PROVIDER: "local"
+      UPLOAD_DIRECTORY: "/uploads"
+      NEXT_PUBLIC_UPLOAD_STATIC_DIRECTORY: "/uploads"
+      NEXT_PUBLIC_DISCORD_SUPPORT: ""
+      NEXT_PUBLIC_POLOTNO: ""
+      STRIPE_PUBLISHABLE_KEY: ""
+      NEXT_PUBLIC_SENTRY_DSN: ""
+      NEXT_PUBLIC_POSTHOG_KEY: ""
+      NEXT_PUBLIC_POSTHOG_HOST: ""
+      NEXT_PUBLIC_FACEBOOK_PIXEL: ""
+      NEXT_PUBLIC_POSTIZ_OAUTH_LOGO_URL: ""
+      NEXT_PUBLIC_POSTIZ_OAUTH_DISPLAY_NAME: ""
+      POSTIZ_GENERIC_OAUTH: "false"
+      DISABLE_IMAGE_COMPRESSION: "true"
+      DISABLE_X_ANALYTICS: "true"
+    volumes:
+      - ${APP_DATA_DIR:-./data}/uploads:/uploads
+    ports:
+      - "3000:3000"
+      - "4200:4200"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:17-alpine
+    restart: on-failure
+    environment:
+      POSTGRES_USER: postiz-user
+      POSTGRES_PASSWORD: postiz-password
+      POSTGRES_DB: postiz-db-local
+    volumes:
+      - ${APP_DATA_DIR:-./data}/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postiz-user -d postiz-db-local"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
