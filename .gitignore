@@ -8,6 +8,8 @@ tmp
 # dependencies
 node_modules
 .pnpm-store/
+.docker-config/
+reports/
 
 # IDEs and editors
 /.idea

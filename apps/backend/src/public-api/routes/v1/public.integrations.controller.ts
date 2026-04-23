@@ -28,7 +28,6 @@ import {
 import { UploadDto } from '@gitroom/nestjs-libraries/dtos/media/upload.dto';
 import { NotificationService } from '@gitroom/nestjs-libraries/database/prisma/notifications/notification.service';
 import { GetNotificationsDto } from '@gitroom/nestjs-libraries/dtos/notifications/get.notifications.dto';
-import axios from 'axios';
 import { Readable } from 'stream';
 import { lookup, extension } from 'mime-types';
 import * as Sentry from '@sentry/nestjs';
@@ -37,6 +36,10 @@ import { RefreshIntegrationService } from '@gitroom/nestjs-libraries/integration
 import { RefreshToken } from '@gitroom/nestjs-libraries/integrations/social.abstract';
 import { timer } from '@gitroom/helpers/utils/timer';
 import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
+import {
+  readLimitedResponseBuffer,
+  safeRemoteFetch,
+} from '@gitroom/helpers/utils/safe.remote.url';
 
 @ApiTags('Public API')
 @Controller('/public/v1')
@@ -77,12 +80,16 @@ export class PublicIntegrationsController {
     @Body() body: UploadDto
   ) {
     Sentry.metrics.count('public_api-request', 1);
-    const response = await axios.get(body.url, {
-      responseType: 'arraybuffer',
+    const response = await safeRemoteFetch(body.url, undefined, {
+      allowedExtensions: ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.mp4'],
     });
 
-    const buffer = Buffer.from(response.data);
-    const responseMime = response.headers?.['content-type']?.split(';')[0]?.trim();
+    if (!response.ok) {
+      throw new HttpException({ msg: 'Could not fetch remote file' }, 400);
+    }
+
+    const buffer = await readLimitedResponseBuffer(response, 50 * 1024 * 1024);
+    const responseMime = response.headers.get('content-type')?.split(';')[0]?.trim();
     const urlMime = lookup(body?.url?.split?.('?')?.[0]);
     const mimetype = (urlMime || responseMime || 'image/jpeg') as string;
     const ext = extension(mimetype) || 'jpg';

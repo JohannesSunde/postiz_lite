@@ -238,16 +238,16 @@ export class AuthController {
 
   @Post('/resend-activation')
   async resendActivation(@Body() body: ResendActivationDto) {
+    const genericResponse = {
+      success: true,
+      message: 'If the account can be activated, an activation email will be sent.',
+    };
+
     try {
       await this._authService.resendActivationEmail(body.email);
-      return {
-        success: true,
-      };
+      return genericResponse;
     } catch (e: any) {
-      return {
-        success: false,
-        message: e.message,
-      };
+      return genericResponse;
     }
   }
 

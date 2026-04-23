@@ -129,6 +129,12 @@ To have the project up and running, please follow the [Quick Start Guide](https:
 
 For a low-powered home server, the recommended self-hosted setup is now a single app container plus Postgres.
 
+Create a local `.env` with a unique signing secret before starting Docker:
+
+```bash
+node -e "console.log('JWT_SECRET=' + require('crypto').randomBytes(32).toString('hex'))" > .env
+```
+
 Run:
 
 ```bash

@@ -7,12 +7,25 @@ import clsx from 'clsx';
 import { useClickAway } from '@uidotdev/usehooks';
 import ReactLoading from 'react-loading';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
-function replaceLinks(text: string) {
+function renderLinks(text: string) {
   const urlRegex =
     /(\bhttps?:\/\/[-A-Z0-9+&@#/%?=~_|!:,.;]*[-A-Z0-9+&@#/%=~_|])/gi;
-  return text.replace(
-    urlRegex,
-    '<a class="cursor-pointer underline font-bold" target="_blank" href="$1">$1</a>'
+  const parts = text.split(urlRegex);
+
+  return parts.map((part, index) =>
+    /^https?:\/\//i.test(part) ? (
+      <a
+        className="cursor-pointer underline font-bold"
+        target="_blank"
+        rel="noopener noreferrer"
+        href={part}
+        key={`${part}_${index}`}
+      >
+        {part}
+      </a>
+    ) : (
+      part
+    )
   );
 }
 export const ShowNotification: FC<{
@@ -32,10 +45,9 @@ export const ShowNotification: FC<{
         `text-textColor px-[16px] py-[10px] border-b border-tableBorder last:border-b-0 transition-colors overflow-hidden text-ellipsis`,
         newNotification && 'font-bold bg-seventh animate-newMessages'
       )}
-      dangerouslySetInnerHTML={{
-        __html: replaceLinks(notification.content),
-      }}
-    />
+    >
+      {renderLinks(notification.content)}
+    </div>
   );
 };
 export const NotificationOpenComponent = () => {

@@ -9,7 +9,7 @@ services:
       FRONTEND_URL: 'http://localhost:4200'
       NEXT_PUBLIC_BACKEND_URL: 'http://localhost:3000'
       BACKEND_INTERNAL_URL: 'http://localhost:3000'
-      JWT_SECRET: 'random string that is unique to every install - just type random characters here!'
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET to a long random string before starting Postiz}
       DATABASE_URL: 'postgresql://postiz-user:postiz-password@postiz-postgres:5432/postiz-db-local'
       IS_GENERAL: 'true'
       DISABLE_REGISTRATION: 'false'

@@ -6,7 +6,12 @@ cd /app
 
 if [[ "${POSTIZ_RUN_DB_PUSH:-true}" == "true" ]]; then
   echo "Syncing Prisma schema to Postgres..."
-  until ./node_modules/.bin/prisma db push --accept-data-loss --schema ./libraries/nestjs-libraries/src/database/prisma/schema.prisma; do
+  PRISMA_DB_PUSH_ARGS=(db push --schema ./libraries/nestjs-libraries/src/database/prisma/schema.prisma)
+  if [[ "${POSTIZ_ACCEPT_DB_DATA_LOSS:-false}" == "true" ]]; then
+    PRISMA_DB_PUSH_ARGS+=(--accept-data-loss)
+  fi
+
+  until ./node_modules/.bin/prisma "${PRISMA_DB_PUSH_ARGS[@]}"; do
     echo "Waiting for Postgres to become ready..."
     sleep 5
   done

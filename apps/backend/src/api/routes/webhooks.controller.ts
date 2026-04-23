@@ -18,6 +18,7 @@ import {
   WebhooksDto,
 } from '@gitroom/nestjs-libraries/dtos/webhooks/webhooks.dto';
 import { AuthorizationActions, Sections } from '@gitroom/backend/services/auth/permissions/permission.exception.class';
+import { safeRemoteFetch } from '@gitroom/helpers/utils/safe.remote.url';
 
 @ApiTags('Webhooks')
 @Controller('/webhooks')
@@ -57,13 +58,13 @@ export class WebhookController {
   @Post('/send')
   async sendWebhook(@Body() body: any, @Query('url') url: string) {
     try {
-      await fetch(url, {
+      await safeRemoteFetch(url, {
         method: 'POST',
         body: JSON.stringify(body),
         headers: { 'Content-Type': 'application/json' },
       });
     } catch (err) {
-      /** sent **/
+      return { send: false };
     }
 
     return { send: true };

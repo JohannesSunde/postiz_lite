@@ -16,7 +16,7 @@ services:
       FRONTEND_URL: "http://${DEVICE_DOMAIN_NAME:-localhost}:4200"
       NEXT_PUBLIC_BACKEND_URL: "http://${DEVICE_DOMAIN_NAME:-localhost}:3000"
       BACKEND_INTERNAL_URL: "http://localhost:3000"
-      JWT_SECRET: "replace-with-a-long-random-string"
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET to a long random string before starting Postiz}
       DATABASE_URL: "postgresql://postiz-user:postiz-password@db:5432/postiz-db-local"
       IS_GENERAL: "true"
       DISABLE_REGISTRATION: "false"

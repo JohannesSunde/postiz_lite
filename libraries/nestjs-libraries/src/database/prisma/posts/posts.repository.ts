@@ -183,16 +183,10 @@ export class PostsRepository {
         ],
         integration: {
           deletedAt: null,
+          ...(query.customer ? { customerId: query.customer } : {}),
         },
         deletedAt: null,
         parentPostId: null,
-        ...(query.customer
-          ? {
-              integration: {
-                customerId: query.customer,
-              },
-            }
-          : {}),
       },
       select: {
         id: true,
@@ -744,10 +738,10 @@ export class PostsRepository {
   }) {
     return this._popularPosts.model.popularPosts.create({
       data: {
-        category: 'category',
-        topic: 'topic',
-        content: 'content',
-        hook: 'hook',
+        category: post.category,
+        topic: post.topic,
+        content: post.content,
+        hook: post.hook,
       },
     });
   }
@@ -816,6 +810,7 @@ export class PostsRepository {
     return this._tags.model.tags.update({
       where: {
         id,
+        orgId,
       },
       data: {
         name: body.name,

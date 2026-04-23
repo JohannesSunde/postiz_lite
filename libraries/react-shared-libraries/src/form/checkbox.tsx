@@ -1,10 +1,10 @@
 'use client';
 
-import { FC, forwardRef, useCallback, useState } from 'react';
+import { ChangeEvent, forwardRef, useCallback } from 'react';
 import clsx from 'clsx';
-import { useFormContext, useWatch } from 'react-hook-form';
+import { useFormContext } from 'react-hook-form';
 export const Checkbox = forwardRef<
-  null,
+  HTMLInputElement,
   {
     checked?: boolean;
     disableForm?: boolean;
@@ -22,35 +22,49 @@ export const Checkbox = forwardRef<
 >((props, ref: any) => {
   const { checked, className, label, disableForm, variant } = props;
   const form = useFormContext();
-  const register = disableForm ? {} : form.register(props.name!);
-  const watch = disableForm ? false : form.watch(props.name!);
-  const val = watch || checked;
+  const register =
+    disableForm || !props.name ? undefined : form.register(props.name);
+  const watch = disableForm || !props.name ? undefined : form.watch(props.name);
+  const val = Boolean(watch ?? checked);
 
-  const changeStatus = useCallback(() => {
+  const setRef = useCallback(
+    (element: HTMLInputElement | null) => {
+      register?.ref(element);
+      if (typeof ref === 'function') {
+        ref(element);
+      } else if (ref) {
+        ref.current = element;
+      }
+    },
+    [ref, register]
+  );
+
+  const changeStatus = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    const nextValue = event.target.checked;
     props?.onChange?.({
       target: {
         name: props.name!,
-        value: !val,
+        value: nextValue,
       },
     });
     if (!disableForm) {
-      // @ts-ignore
-      register?.onChange?.({
-        target: {
-          name: props.name!,
-          value: !val,
-        },
-      });
+      register?.onChange?.(event);
     }
-  }, [val]);
+  }, [disableForm, props, register]);
   return (
-    <div className="flex gap-[10px]">
-      <div
-        ref={ref}
-        {...disableForm ? {} : form.register(props.name!)}
-        onClick={changeStatus}
+    <label className="flex gap-[10px] items-center">
+      <input
+        ref={setRef}
+        type="checkbox"
+        name={props.name}
+        checked={val}
+        onBlur={register?.onBlur}
+        onChange={changeStatus}
+        className="sr-only peer"
+      />
+      <span
         className={clsx(
-          'cursor-pointer rounded-[4px] select-none w-[24px] h-[24px] justify-center items-center flex text-white',
+          'cursor-pointer rounded-[4px] select-none w-[24px] h-[24px] justify-center items-center flex text-white peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-white',
           variant === 'default' || !variant
             ? 'bg-forth'
             : 'border-customColor1 border-2 bg-customColor2',
@@ -74,8 +88,8 @@ export const Checkbox = forwardRef<
             </svg>
           </div>
         )}
-      </div>
+      </span>
       {!!label && <div>{label}</div>}
-    </div>
+    </label>
   );
 });

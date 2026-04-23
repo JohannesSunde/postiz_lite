@@ -25,6 +25,7 @@ import { AuthService } from '@gitroom/helpers/auth/auth.service';
 import { pricing } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/pricing';
 import { Readable, pipeline } from 'stream';
 import { promisify } from 'util';
+import { safeRemoteFetch } from '@gitroom/helpers/utils/safe.remote.url';
 
 const pump = promisify(pipeline);
 
@@ -173,16 +174,27 @@ export class PublicController {
     @Res() res: Response,
     @Req() req: Request
   ) {
-    if (!url.endsWith('mp4')) {
+    if (!url) {
       return res.status(400).send('Invalid video URL');
     }
 
     const ac = new AbortController();
+    const timeout = setTimeout(() => ac.abort(), 30000);
     const onClose = () => ac.abort();
     req.on('aborted', onClose);
     res.on('close', onClose);
 
-    const r = await fetch(url, { signal: ac.signal });
+    let r: globalThis.Response;
+    try {
+      r = await safeRemoteFetch(
+        url,
+        { signal: ac.signal },
+        { allowedExtensions: ['.mp4'] }
+      );
+    } catch (err) {
+      clearTimeout(timeout);
+      return res.status(400).send('Invalid video URL');
+    }
 
     if (!r.ok && r.status !== 206) {
       res.status(r.status);
@@ -206,6 +218,8 @@ export class PublicController {
     try {
       await pump(Readable.fromWeb(r.body as any), res);
     } catch (err) {
+    } finally {
+      clearTimeout(timeout);
     }
   }
 }
