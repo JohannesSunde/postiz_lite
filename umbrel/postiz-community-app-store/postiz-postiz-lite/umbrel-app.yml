@@ -1,5 +1,5 @@
 manifestVersion: 1
-id: postiz-lite
+id: postiz-postiz-lite
 category: social
 name: Postiz Lite
 version: "1.0.0"
@@ -14,11 +14,11 @@ releaseNotes: ""
 developer: Postiz
 website: https://postiz.com
 dependencies: []
-repo: https://github.com/gitroomhq/postiz-app
-support: https://github.com/gitroomhq/postiz-app/issues
+repo: https://github.com/JohannesSunde/postiz_lite
+support: https://github.com/JohannesSunde/postiz_lite/issues
 port: 4200
 gallery: []
 path: ""
 defaultUsername: ""
 defaultPassword: ""
-submitter: OpenAI
+submitter: JohannesSunde

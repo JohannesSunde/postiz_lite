@@ -32,8 +32,9 @@ COPY . .
 RUN pnpm install --frozen-lockfile --ignore-scripts
 RUN ./node_modules/.bin/prisma generate --schema ./libraries/nestjs-libraries/src/database/prisma/schema.prisma
 
-# Build both apps from the monorepo root so the shared workspace packages are bundled correctly.
-RUN pnpm run build:backend && pnpm run build:frontend
+# Build both apps in production mode so Next.js generates the same output as the
+# local runtime build instead of using development server internals.
+RUN NODE_ENV=production pnpm run build:backend && NODE_ENV=production pnpm run build:frontend
 
 FROM base AS runtime
 
